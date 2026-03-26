@@ -543,6 +543,14 @@ class RuntimeConfigurationObject:
 
         scale_info_types = metadata.portable_registry.value_object['types'].value_object
 
+        # Clear cached classes for this prefix so that switching metadata (e.g. querying
+        # a historical block) always rebuilds decoder classes from the new metadata rather
+        # than returning stale classes built from a different runtime version.
+        prefix_key = prefix + '::'
+        stale_keys = [k for k in self._dynamic_class_cache if k.startswith(prefix_key)]
+        for k in stale_keys:
+            del self._dynamic_class_cache[k]
+
         self.update_from_scale_info_types(scale_info_types, prefix=prefix)
 
         # Process extrinsic type in metadata to register correct Address and ExtrinsicSignature types

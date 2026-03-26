@@ -49,4 +49,5 @@ exclude = ["contrib", "docs", "tests", "test"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "setuptools>=82.0.1",
 ]

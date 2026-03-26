@@ -20,7 +20,10 @@ _extensions = [
 
 try:
     from Cython.Build import cythonize
-    ext_modules = cythonize(_extensions, compiler_directives=_cython_compiler_directives)
+
+    ext_modules = cythonize(
+        _extensions, compiler_directives=_cython_compiler_directives
+    )
 except ImportError:
     # Fall back to pre-generated .c files when Cython is not installed
     ext_modules = [

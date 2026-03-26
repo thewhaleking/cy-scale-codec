@@ -7,6 +7,7 @@ Unit tests mirroring the async-substrate-interface integration tests:
 These tests exercise the same scalecodec code paths as the integration tests but use
 synthetic / fixture data so they run without network access.
 """
+
 import os
 import re
 import struct
@@ -18,7 +19,9 @@ from scalecodec.type_registry import load_type_registry_file, load_type_registry
 
 def _get_fixture(name: str) -> str:
     module_path = os.path.dirname(__file__)
-    fixtures = load_type_registry_file(os.path.join(module_path, "fixtures", "metadata_hex.json"))
+    fixtures = load_type_registry_file(
+        os.path.join(module_path, "fixtures", "metadata_hex.json")
+    )
     return fixtures[name]
 
 
@@ -78,7 +81,11 @@ class TestLegacyEventDecoding(unittest.TestCase):
         )
         events_decoder.decode()
         for event in events_decoder.value:
-            self.assertIn("attributes", event, f"Event {event.get('event_id')} missing 'attributes' key")
+            self.assertIn(
+                "attributes",
+                event,
+                f"Event {event.get('event_id')} missing 'attributes' key",
+            )
 
     def test_attributes_is_list_of_param_dicts(self):
         events_decoder = RuntimeConfiguration().create_scale_object(
@@ -90,7 +97,9 @@ class TestLegacyEventDecoding(unittest.TestCase):
         for event in events_decoder.value:
             attrs = event["attributes"]
             self.assertIsInstance(
-                attrs, list, f"attributes for {event.get('event_id')} should be list, got {type(attrs).__name__}"
+                attrs,
+                list,
+                f"attributes for {event.get('event_id')} should be list, got {type(attrs).__name__}",
             )
             for param in attrs:
                 self.assertIn("type", param)
@@ -103,7 +112,15 @@ class TestLegacyEventDecoding(unittest.TestCase):
             metadata=self.metadata,
         )
         events_decoder.decode()
-        required_keys = {"phase", "extrinsic_idx", "event_index", "module_id", "event_id", "attributes", "topics"}
+        required_keys = {
+            "phase",
+            "extrinsic_idx",
+            "event_index",
+            "module_id",
+            "event_id",
+            "attributes",
+            "topics",
+        }
         for event in events_decoder.value:
             self.assertTrue(
                 required_keys.issubset(event.keys()),
@@ -148,12 +165,14 @@ class TestScaleInfoEventDecoding(unittest.TestCase):
         RuntimeConfiguration().add_portable_registry(cls.metadata)
 
     @classmethod
-    def _build_event_bytes(cls, phase_bytes: bytes, module_variant: int, inner_variant: int, payload: bytes) -> str:
+    def _build_event_bytes(
+        cls, phase_bytes: bytes, module_variant: int, inner_variant: int, payload: bytes
+    ) -> str:
         """Build a Vec<EventRecord> hex string with one event."""
-        vec_len = bytes([0x04])       # Compact(1)
+        vec_len = bytes([0x04])  # Compact(1)
         module = bytes([module_variant])
         inner = bytes([inner_variant])
-        topics = bytes([0x00])       # empty topics Vec
+        topics = bytes([0x00])  # empty topics Vec
         raw = vec_len + phase_bytes + module + inner + payload + topics
         return "0x" + raw.hex()
 
@@ -161,7 +180,9 @@ class TestScaleInfoEventDecoding(unittest.TestCase):
         """CodeUpdated (variant 2) has no fields → attributes should be None."""
         phase = bytes([0x01])  # Finalization
         # System (variant 0) → CodeUpdated (variant 2)
-        hex_data = self._build_event_bytes(phase, module_variant=0, inner_variant=2, payload=b"")
+        hex_data = self._build_event_bytes(
+            phase, module_variant=0, inner_variant=2, payload=b""
+        )
         decoder = RuntimeConfiguration().create_scale_object(
             "scale_info::19", data=ScaleBytes(hex_data), metadata=self.metadata
         )
@@ -175,7 +196,9 @@ class TestScaleInfoEventDecoding(unittest.TestCase):
         """NewAccount (variant 3) has one named field 'account' → attributes should be dict."""
         phase = bytes([0x01])  # Finalization
         account_bytes = bytes(32)  # 32-byte AccountId (all zeros)
-        hex_data = self._build_event_bytes(phase, module_variant=0, inner_variant=3, payload=account_bytes)
+        hex_data = self._build_event_bytes(
+            phase, module_variant=0, inner_variant=3, payload=account_bytes
+        )
         decoder = RuntimeConfiguration().create_scale_object(
             "scale_info::19", data=ScaleBytes(hex_data), metadata=self.metadata
         )
@@ -197,7 +220,9 @@ class TestScaleInfoEventDecoding(unittest.TestCase):
         uid = (100).to_bytes(2, "little")
         account = bytes(32)  # 32-byte AccountId
         payload = netuid + uid + account
-        hex_data = self._build_event_bytes(phase, module_variant=7, inner_variant=6, payload=payload)
+        hex_data = self._build_event_bytes(
+            phase, module_variant=7, inner_variant=6, payload=payload
+        )
         decoder = RuntimeConfiguration().create_scale_object(
             "scale_info::19", data=ScaleBytes(hex_data), metadata=self.metadata
         )
@@ -210,12 +235,16 @@ class TestScaleInfoEventDecoding(unittest.TestCase):
         self.assertEqual(uid_val, 100)
         # AccountId should be SS58-encoded when ss58_format is set
         self.assertIsInstance(account_val, str)
-        self.assertEqual(account_val, "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM")
+        self.assertEqual(
+            account_val, "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM"
+        )
 
     def test_apply_extrinsic_phase(self):
         """Phase::ApplyExtrinsic(u32) sets extrinsic_idx correctly."""
         phase = bytes([0x00]) + (5).to_bytes(4, "little")  # ApplyExtrinsic(5)
-        hex_data = self._build_event_bytes(phase, module_variant=0, inner_variant=2, payload=b"")
+        hex_data = self._build_event_bytes(
+            phase, module_variant=0, inner_variant=2, payload=b""
+        )
         decoder = RuntimeConfiguration().create_scale_object(
             "scale_info::19", data=ScaleBytes(hex_data), metadata=self.metadata
         )
@@ -227,7 +256,9 @@ class TestScaleInfoEventDecoding(unittest.TestCase):
     def test_event_has_attributes_key_at_top_level(self):
         """The 'attributes' key must exist at the TOP level of the event dict (not only nested under 'event')."""
         phase = bytes([0x01])  # Finalization
-        hex_data = self._build_event_bytes(phase, module_variant=0, inner_variant=2, payload=b"")
+        hex_data = self._build_event_bytes(
+            phase, module_variant=0, inner_variant=2, payload=b""
+        )
         decoder = RuntimeConfiguration().create_scale_object(
             "scale_info::19", data=ScaleBytes(hex_data), metadata=self.metadata
         )
@@ -319,7 +350,9 @@ class TestRuntimeCallLegacyDecode(unittest.TestCase):
 
     def test_compact_u32_decode(self):
         """Basic compact encoding: 1 → 0x04."""
-        obj = self.runtime_config.create_scale_object("Compact<u32>", data=ScaleBytes("0x04"))
+        obj = self.runtime_config.create_scale_object(
+            "Compact<u32>", data=ScaleBytes("0x04")
+        )
         obj.decode()
         self.assertEqual(obj.value, 1)
 
