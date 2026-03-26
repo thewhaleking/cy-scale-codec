@@ -1,46 +1,88 @@
-# Python SCALE Codec
+# cyscale
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/polkascan/py-scale-codec/unittests.yml?branch=master)](https://github.com/polkascan/py-scale-codec/actions/workflows/unittests.yml?query=workflow%3A%22Run+unit+tests%22)
-[![Latest Version](https://img.shields.io/pypi/v/scalecodec.svg)](https://pypi.org/project/scalecodec/) 
-[![Supported Python versions](https://img.shields.io/pypi/pyversions/scalecodec.svg)](https://pypi.org/project/scalecodec/)
-[![License](https://img.shields.io/pypi/l/scalecodec.svg)](https://github.com/polkascan/py-scale-codec/blob/master/LICENSE)
+[![Latest Version](https://img.shields.io/pypi/v/cyscale.svg)](https://pypi.org/project/cyscale/)
+[![Supported Python versions](https://img.shields.io/pypi/pyversions/cyscale.svg)](https://pypi.org/project/cyscale/)
+[![License](https://img.shields.io/pypi/l/cyscale.svg)](https://github.com/thewhaleking/cy-scale-codec/blob/master/LICENSE)
 
+Cython-accelerated [SCALE codec](https://docs.substrate.io/reference/scale-codec/) library for Substrate-based blockchains (Polkadot, Kusama, Bittensor, etc.).
 
-## Description
-[Substrate](https://github.com/paritytech/substrate) uses a lightweight and efficient [encoding and decoding program](https://docs.substrate.io/reference/scale-codec/) to optimize how data is sent and received over the network. The program used to serialize and deserialize data is called the SCALE codec, with SCALE being an acronym for **S**imple **C**oncatenated **A**ggregate **L**ittle-**E**ndian.
-
-## Documentation
-https://polkascan.github.io/py-scale-codec/
-
+A drop-in replacement for [py-scale-codec](https://github.com/polkascan/py-scale-codec) — same `scalecodec` module name, same public API, compiled with Cython for improved throughput.
 
 ## Installation
+
 ```bash
-pip install scalecodec
+pip install cyscale
+```
+
+## Performance
+
+Benchmarked on Apple M-series (Python 3.13) against py-scale-codec 1.2.12.
+All timings are µs per call; speedup = py ÷ cy.
+
+### Primitives and small types
+
+| Benchmark                   | py (µs) | cy (µs) | speedup |
+|-----------------------------|---------|---------|---------|
+| u8 decode                   | 2.18    | 1.29    | 1.68×   |
+| u16 decode                  | 2.12    | 1.40    | 1.52×   |
+| u32 decode                  | 2.10    | 1.37    | 1.53×   |
+| u64 decode                  | 2.14    | 1.39    | 1.54×   |
+| u128 decode                 | 2.11    | 1.37    | 1.53×   |
+| Compact\<u32\> decode       | 6.94    | 4.94    | 1.40×   |
+| bool decode                 | 2.10    | 1.33    | 1.58×   |
+| H256 decode                 | 2.14    | 1.37    | 1.57×   |
+| AccountId decode (no SS58)  | 2.65    | 1.72    | 1.54×   |
+| Str decode                  | 9.20    | 6.37    | 1.44×   |
+| (u32, u64, bool) decode     | 16.11   | 10.69   | 1.51×   |
+| u32 encode                  | 1.65    | 0.98    | 1.68×   |
+| u64 encode                  | 1.68    | 0.98    | 1.71×   |
+| Compact\<u32\> encode       | 6.47    | 4.53    | 1.43×   |
+| H256 encode                 | 1.77    | 1.04    | 1.70×   |
+
+### Large payloads
+
+| Benchmark                                       | py (µs)    | cy (µs)    | speedup |
+|-------------------------------------------------|------------|------------|---------|
+| Vec\<u32\> decode (64 elements)                 | 160.57     | 105.46     | 1.52×   |
+| Vec\<u32\> decode (1,024 elements)              | 2,329.76   | 1,574.94   | 1.48×   |
+| Vec\<u32\> decode (16,384 elements)             | 37,470.39  | 24,791.11  | 1.51×   |
+| Bytes decode (1 KB)                             | 10.35      | 7.65       | 1.35×   |
+| Bytes decode (64 KB)                            | 46.01      | 45.50      | 1.01×   |
+| Bytes decode (512 KB)                           | 270.51     | 290.45     | 0.93×   |
+| Vec\<EventRecord\> decode (5 events, V10)       | 215.79     | 145.50     | 1.48×   |
+| MetadataVersioned decode (V10, 85 KB)           | 47,144.57  | 33,035.40  | 1.43×   |
+| MetadataVersioned decode (V13, 219 KB)          | 102,974.25 | 73,624.13  | 1.40×   |
+| MetadataVersioned decode (V14, 300 KB)          | 284,478.38 | 199,015.58 | 1.43×   |
+| Bittensor metadata + portable registry (254 KB) | 332,447.63 | 229,223.60 | 1.45×   |
+
+Primitives and small types see **~1.4–1.7× speedup**. Large metadata decoding
+sees **~1.4–1.5× speedup** — the gain compounds across thousands of recursive
+decode calls. Raw bulk byte operations (`Bytes`/`Vec<u8>`) above ~64 KB are
+dominated by `memcpy` and show no meaningful difference.
+
+To reproduce, run:
+
+```bash
+# save a py-scale-codec baseline
+python benchmarks/bench.py --save-baseline benchmarks/baseline_py.json
+
+# compare against cy-scale-codec
+PYTHONPATH=. python benchmarks/bench.py --compare benchmarks/baseline_py.json
 ```
 
 ## Examples of different types
 
-| Type                                                                         | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Example SCALE decoding value                                                | SCALE encoded value                                                             |
-|------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------|---------------------------------------------------------------------------------|
-| `bool`                                                                       | Boolean values are encoded using the least significant bit of a single byte.                                                                                                                                                                                                                                                                                                                                                                                                         | `True`                                                                      | `0x01`                                                                          |
-| `u16`                                                                        | Basic integers are encoded using a fixed-width little-endian (LE) format.                                                                                                                                                                                                                                                                                                                                                                                                            | `42`                                                                        | `0x2a00`                                                                        |
-| `Compact`                                                                    | A "compact" or general integer encoding is sufficient for encoding large integers (up to 2**536) and is more efficient at encoding most values than the fixed-width version. (Though for single-byte values, the fixed-width integer is never worse.)                                                                                                                                                                                                                                | `0`                                                                         | `0x00`                                                                          |
-|                                                                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `1`                                                                         | `0x04`                                                                          |
-|                                                                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `42`                                                                        | `0xa8`                                                                          |
-|                                                                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `69`                                                                        | `0x1501`                                                                        |
-|                                                                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `100000000000000`                                                           | `0x0b00407a10f35a`                                                              |
-| `Vec`                                                                        | A collection of same-typed values is encoded, prefixed with a compact encoding of the number of items, followed by each item's encoding concatenated in turn.                                                                                                                                                                                                                                                                                                                        | `[4, 8, 15, 16, 23, 42]`                                                    | `0x18040008000f00100017002a00`                                                  |
-| `BitVec`                                                                     | A sequence of bools, represented in a more space efficient bit format                                                                                                                                                                                                                                                                                                                                                                                                                | `0b00000010_01111101`                                                       | `0x287d02`                                                                      |
-| `str`,`Bytes`, `String`                                                      | Strings are Vectors of bytes (`Vec<u8>`) containing a valid UTF8 sequence.                                                                                                                                                                                                                                                                                                                                                                                                           | `"Test"`                                                                    | `0x1054657374`                                                                  |
-|                                                                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `b"Test"`                                                                   | `0x1054657374`                                                                  |
-|                                                                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `[84, 101, 115, 116]`                                                       | `0x1054657374`                                                                  |
-| `[u8; 4]`                                                                    | Fixed sized array of in this case an `u8`                                                                                                                                                                                                                                                                                                                                                                                                                                            | `b"babe"`                                                                   | `0x62616265`                                                                    |
-|                                                                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `"0x62616265"`                                                              | `0x62616265`                                                                    |
-|                                                                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `[98, 97, 98, 101]`                                                         | `0x62616265`                                                                    |
-| `AccountId`                                                                  | An [SS58 formatted](https://docs.substrate.io/reference/address-formats/) representation of an account. See also the [SS58 util functions](https://polkascan.github.io/py-scale-codec/utils/ss58.html)                                                                                                                                                                                                                                                                               | `"5GDyPHLVHcQYPTWfygtPY eogQjyZy7J9fsi4brPhgEFq4pcv"`                       | `0xb80269ec500e458a630846b99105c397 ee574125823d6f4388e9c7572e115c05`           |
-| `Enum` Example: `enum IntOrBool { Int(u8), Bool(bool),}`                     | A fixed number of variants, each mutually exclusive and potentially implying a further value or series of values. Encoded as the first byte identifying the index of the variant that the value is. Any further bytes are used to encode any data that the variant implies. Thus, no more than 256 variants are supported.                                                                                                                                                           | `{'Int': 8}`                                                                | `0x002a`                                                                        |
-|                                                                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `{'Bool': True}`                                                            | `0x0101`                                                                        |
-| `Struct` Example: `struct Motion { pub votes: Vec<AccountId>, pub id: u32 }` | For structures, the values are named, but that is irrelevant for the encoding (names are ignored - only order matters). All containers store elements consecutively. The order of the elements is not fixed, depends on the container, and cannot be relied on at decoding. This implicitly means that decoding some byte-array into a specified structure that enforces an order and then re-encoding it could result in a different byte array than the original that was decoded. | `{"votes": ["5GDyPHLVHcQYPTWfygtPYeo gQjyZy7J9fsi4brPhgEFq4pcv"], "id": 4}` | `0x04b80269ec500e458a630846b99105c397ee57 4125823d6f4388e9c7572e115c0504000000` |
+| Type | Description | Example SCALE decoding value | SCALE encoded value |
+|------|-------------|------------------------------|---------------------|
+| `bool` | Boolean values are encoded using the least significant bit of a single byte. | `True` | `0x01` |
+| `u16` | Basic integers are encoded using a fixed-width little-endian (LE) format. | `42` | `0x2a00` |
+| `Compact` | A "compact" or general integer encoding is sufficient for encoding large integers (up to 2\*\*536) and is more efficient at encoding most values than the fixed-width version. | `1` | `0x04` |
+| `Vec` | A collection of same-typed values is encoded, prefixed with a compact encoding of the number of items, followed by each item's encoding concatenated in turn. | `[4, 8, 15, 16, 23, 42]` | `0x18040008000f00100017002a00` |
+| `str`, `Bytes` | Strings are Vectors of bytes (`Vec<u8>`) containing a valid UTF8 sequence. | `"Test"` | `0x1054657374` |
+| `AccountId` | An [SS58 formatted](https://docs.substrate.io/reference/address-formats/) representation of an account. | `"5GDyPHLVHcQYPTWfygtPYeogQjyZy7J9fsi4brPhgEFq4pcv"` | `0xb80269ec...` |
+| `Enum` | A fixed number of variants, each mutually exclusive. Encoded as the first byte identifying the index of the variant. | `{'Int': 8}` | `0x002a` |
+| `Struct` | For structures, values are named but that is irrelevant for the encoding (only order matters). | `{"votes": [...], "id": 4}` | `0x04b80269...` |
 
 ## License
-https://github.com/polkascan/py-scale-codec/blob/master/LICENSE
+
+Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
