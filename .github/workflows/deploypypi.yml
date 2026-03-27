@@ -9,59 +9,86 @@ on:
         type: string
 
 jobs:
-  build:
-    name: Build Python distribution
+  build-wheels:
+    name: Build wheels (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set version
+      shell: bash
+      run: |
+        python - << 'PYEOF'
+        import re
+        version = "${{ github.event.inputs.version }}"
+        with open("pyproject.toml") as f:
+            content = f.read()
+        content = re.sub(r'^version = ".*"', f'version = "{version}"', content, flags=re.MULTILINE)
+        with open("pyproject.toml", "w") as f:
+            f.write(content)
+        print(f"Set version to {version}")
+        PYEOF
+
+    - name: Set up QEMU (Linux aarch64 emulation)
+      if: runner.os == 'Linux'
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: aarch64
+
+    - name: Build wheels
+      uses: pypa/cibuildwheel@v2.22.0
+      env:
+        CIBW_BUILD: cp310-* cp311-* cp312-* cp313-* cp314-*
+        CIBW_ARCHS_LINUX: x86_64 aarch64
+        CIBW_ARCHS_MACOS: x86_64 arm64
+        CIBW_ARCHS_WINDOWS: AMD64
+        CIBW_BUILD_VERBOSITY: 1
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: wheels-${{ matrix.os }}
+        path: wheelhouse/
+
+  build-sdist:
+    name: Build sdist
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.12'
 
-    - name: Install dependencies
+    - name: Set version
       run: |
-        python -m pip install --upgrade pip
-        pip install setuptools wheel twine build toml Cython>=3.0
+        python - << 'PYEOF'
+        import re
+        version = "${{ github.event.inputs.version }}"
+        with open("pyproject.toml") as f:
+            content = f.read()
+        content = re.sub(r'^version = ".*"', f'version = "{version}"', content, flags=re.MULTILINE)
+        with open("pyproject.toml", "w") as f:
+            f.write(content)
+        PYEOF
 
-    - name: Set version in pyproject.toml
-      run: |
-        python - <<'EOF'
-        import toml
-        data = toml.load('pyproject.toml')
-        data['project']['version'] = '${{ github.event.inputs.version }}'
-        with open('pyproject.toml', 'w') as f:
-            toml.dump(data, f)
-        EOF
+    - name: Install build
+      run: pip install build
 
-    - name: Build package
-      run: python -m build --sdist --wheel --outdir dist/
+    - name: Build sdist
+      run: python -m build --sdist --outdir dist/
 
-    - name: Check if package version already exists
-      run: |
-        PACKAGE_NAME=$(python -c "import toml; print(toml.load('pyproject.toml')['project']['name'])")
-        PACKAGE_VERSION=${{ github.event.inputs.version }}
-        if twine check dist/*; then
-          if pip install $PACKAGE_NAME==$PACKAGE_VERSION 2>/dev/null; then
-            echo "Error: Version $PACKAGE_VERSION of $PACKAGE_NAME already exists on PyPI"
-            exit 1
-          else
-            echo "Version $PACKAGE_VERSION of $PACKAGE_NAME does not exist on PyPI. Proceeding with upload."
-          fi
-        else
-          echo "Error: Twine check failed."
-          exit 1
-        fi
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v4
       with:
-        name: dist
+        name: sdist
         path: dist/
 
   approve-and-publish:
-    needs: build
+    needs: [build-wheels, build-sdist]
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -69,13 +96,20 @@ jobs:
       id-token: write
 
     steps:
-    - name: Download artifact
+    - name: Download wheels
       uses: actions/download-artifact@v4
       with:
-        name: dist
+        pattern: wheels-*
+        path: dist/
+        merge-multiple: true
+
+    - name: Download sdist
+      uses: actions/download-artifact@v4
+      with:
+        name: sdist
         path: dist/
 
-    - name: Publish package distributions to PyPI
+    - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         verbose: true
