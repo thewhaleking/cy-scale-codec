@@ -511,9 +511,9 @@ class GenericAccountId(H256):
     An SS58 formatted representation of an account
     """
 
-    @staticmethod
-    def _batch_decode(data):
-        rc = GenericAccountId.runtime_config
+    @classmethod
+    def _batch_decode(cls, data):
+        rc = cls.runtime_config
         if rc is not None and rc.ss58_format is not None:
             return ss58_encode(data[:32], rc.ss58_format)
         return '0x' + data[:32].hex()
