@@ -511,7 +511,12 @@ class GenericAccountId(H256):
     An SS58 formatted representation of an account
     """
 
-    _batch_decode = None  # Disable H256 fast path; process() handles SS58 encoding
+    @staticmethod
+    def _batch_decode(data):
+        rc = GenericAccountId.runtime_config
+        if rc is not None and rc.ss58_format is not None:
+            return ss58_encode(data[:32], rc.ss58_format)
+        return '0x' + data[:32].hex()
 
     def __init__(self, data=None, **kwargs):
         self.ss58_address = None
