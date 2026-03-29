@@ -10,6 +10,10 @@ Run with installed scalecodec (e.g. py-scale-codec):
 Save a baseline then compare:
     python benchmarks/bench.py --save-baseline benchmarks/baseline_py.json
     PYTHONPATH=. python benchmarks/bench.py --compare benchmarks/baseline_py.json
+
+Note: AccountId benchmarks use SS58 format 42 to reflect real-world usage.
+      bt_decode is excluded from the batch_decode section because it does not
+      perform SS58 encoding; a direct comparison without that step is unfair.
 """
 
 import json
@@ -149,14 +153,16 @@ def bench_short(results: dict):
         results,
     )
 
-    # AccountId (ss58_format not set → raw hex returned)
+    # AccountId — SS58 format 42 (real-world usage)
     ba = _hex_to_ba("01" * 32)
+    rc.ss58_format = 42
     row(
-        "AccountId decode (no SS58)",
+        "AccountId decode (SS58 format 42)",
         run(lambda: rc.create_scale_object("AccountId", _sb(ba)).decode(), N),
         N,
         results,
     )
+    rc.ss58_format = None
 
     # Str — "Hello World!" (12 bytes)
     ba = _hex_to_ba("3048656c6c6f20576f726c6421")
@@ -311,6 +317,76 @@ def bench_long(results: dict):
 
 
 # ---------------------------------------------------------------------------
+# BATCH_DECODE benchmarks — cyscale batch_decode vs individual decode loop
+#
+# bt_decode is intentionally excluded: it does not perform SS58 encoding, so
+# any comparison without that post-processing step would be unfair. The loop
+# baseline here represents the actual work being replaced (including SS58).
+# ---------------------------------------------------------------------------
+
+
+def bench_batch_decode(results: dict):
+    rc = RuntimeConfigurationObject()
+    rc.update_type_registry(load_type_registry_preset("core"))
+    rc.update_type_registry(load_type_registry_preset("legacy"))
+    rc.set_active_spec_version_id(1045)
+    rc.ss58_format = 42
+
+    header("BATCH_DECODE — batch vs individual decode loop (SS58 included)")
+
+    account_ba = bytes(_hex_to_ba("01" * 32))
+    u32_ba = bytes(_hex_to_ba("01020304"))
+    u128_ba = bytes(_hex_to_ba("0102030405060708090a0b0c0d0e0f10"))
+
+    for count, n in [(10, 50_000), (100, 5_000), (1_000, 500)]:
+        type_strings = ["AccountId"] * count
+        bytes_list = [account_ba] * count
+
+        row(
+            f"batch_decode AccountId ×{count:,}",
+            run(lambda ts=type_strings, bl=bytes_list: rc.batch_decode(ts, bl), n),
+            n,
+            results,
+        )
+        row(
+            f"loop decode   AccountId ×{count:,}",
+            run(
+                lambda ts=type_strings, bl=bytes_list: [
+                    rc.create_scale_object(t, ScaleBytes(b)).decode()
+                    for t, b in zip(ts, bl)
+                ],
+                n,
+            ),
+            n,
+            results,
+        )
+
+    # Mixed types (closer to real query_map workload)
+    count = 100
+    n = 5_000
+    mixed_types = ["AccountId", "u32", "u128"] * (count // 3) + ["AccountId"]
+    mixed_bytes = [account_ba, u32_ba, u128_ba] * (count // 3) + [account_ba]
+    row(
+        f"batch_decode mixed (AccountId/u32/u128) ×{count}",
+        run(lambda: rc.batch_decode(mixed_types, mixed_bytes), n),
+        n,
+        results,
+    )
+    row(
+        f"loop decode   mixed (AccountId/u32/u128) ×{count}",
+        run(
+            lambda: [
+                rc.create_scale_object(t, ScaleBytes(b)).decode()
+                for t, b in zip(mixed_types, mixed_bytes)
+            ],
+            n,
+        ),
+        n,
+        results,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -324,6 +400,7 @@ def main():
     results: dict = {}
     bench_short(results)
     bench_long(results)
+    bench_batch_decode(results)
 
     if args.compare:
         with open(args.compare) as f:

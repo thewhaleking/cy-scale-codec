@@ -31,7 +31,7 @@ All timings are µs per call; speedup = py ÷ cy.
 | Compact\<u32\> decode       | 6.94    | 4.94    | 1.40×   |
 | bool decode                 | 2.10    | 1.33    | 1.58×   |
 | H256 decode                 | 2.14    | 1.37    | 1.57×   |
-| AccountId decode (no SS58)  | 2.65    | 1.72    | 1.54×   |
+| AccountId decode (SS58 format 42)  | 8.91    | 8.84    | 1.01×   |
 | Str decode                  | 9.20    | 6.37    | 1.44×   |
 | (u32, u64, bool) decode     | 16.11   | 10.69   | 1.51×   |
 | u32 encode                  | 1.65    | 0.98    | 1.68×   |
@@ -59,6 +59,25 @@ Primitives and small types see **~1.4–1.7× speedup**. Large metadata decoding
 sees **~1.4–1.5× speedup** — the gain compounds across thousands of recursive
 decode calls. Raw bulk byte operations (`Bytes`/`Vec<u8>`) above ~64 KB are
 dominated by `memcpy` and show no meaningful difference.
+
+`AccountId` with SS58 encoding shows ~1× speedup because the cost is dominated
+by the Python `ss58_encode` call, not the SCALE decode itself.
+
+### batch_decode (cyscale-only API)
+
+`batch_decode(type_strings, bytes_list)` amortises Python dispatch overhead
+across a list of decodes. For uniform `AccountId` workloads, gains are modest
+(SS58 dominates); for mixed-type batches the dispatch savings become visible.
+Note: `bt_decode` is excluded from this comparison because it does not perform
+SS58 encoding — including it without that post-processing step would be an
+unfair comparison.
+
+| Benchmark                                       | batch (µs) | loop (µs) | speedup |
+|-------------------------------------------------|------------|-----------|---------|
+| AccountId ×10                                   | 87.3       | 92.1      | 1.06×   |
+| AccountId ×100                                  | 870.1      | 897.6     | 1.03×   |
+| AccountId ×1,000                                | 8693.5     | 8954.4    | 1.03×   |
+| Mixed (AccountId / u32 / u128) ×100             | 303.9      | 444.5     | 1.46×   |
 
 To reproduce, run:
 
