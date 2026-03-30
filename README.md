@@ -1,5 +1,6 @@
 # cyscale
 
+[![Build Status](https://img.shields.io/github/actions/workflow/status/thewhaleking/cyscale/unittests.yml?branch=master)](https://github.com/thewhaleking/cyscale/actions/workflows/unittests.yml?query=workflow%3A%22Run+unit+tests%22)
 [![Latest Version](https://img.shields.io/pypi/v/cyscale.svg)](https://pypi.org/project/cyscale/)
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/cyscale.svg)](https://pypi.org/project/cyscale/)
 [![License](https://img.shields.io/pypi/l/cyscale.svg)](https://github.com/thewhaleking/cy-scale-codec/blob/master/LICENSE)
