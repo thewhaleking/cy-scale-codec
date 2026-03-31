@@ -120,7 +120,7 @@ class RuntimeConfigurationObject:
 
         return name
 
-    def get_decoder_class(self, type_string: Union[str, dict]) -> Optional[type]:
+    def get_decoder_class(self, type_string: Union[str, dict]):
         """
         Lookup and return a ScaleDecoder class for given `type_string`
 
@@ -209,14 +209,10 @@ class RuntimeConfigurationObject:
         if decoder_class:
             # Attach RuntimeConfigurationObject to new class
             decoder_class.runtime_config = self
-            # Cache dynamically created parametric types (Vec<T>, Option<T>, [T; N],
-            # custom tuples) so repeated calls skip the creation branches entirely.
-            if type(type_string) is str:
-                self.type_registry['types'][type_string.lower()] = decoder_class
 
         return decoder_class
 
-    def _require_decoder_class(self, type_string: str) -> type:
+    def _require_decoder_class(self, type_string: str):
         """Like get_decoder_class but raises instead of returning None."""
         cls = self.get_decoder_class(type_string)
         if cls is None:
@@ -721,13 +717,6 @@ class ScaleDecoder(ABC):
     sub_type: Optional[str] = None
 
     runtime_config = None
-
-    data: Optional[ScaleBytes]
-    decoded: bool
-    value_object: Any
-    value_serialized: Any
-    data_start_offset: Optional[int]
-    data_end_offset: Optional[int]
 
     def __init__(self, data: ScaleBytes, sub_type: Optional[str] = None, runtime_config: Optional[RuntimeConfigurationObject] = None):
         """
