@@ -75,7 +75,7 @@ class RuntimeConfigurationObject:
     def __init__(self, config_id: Optional[str] = None, ss58_format: Optional[int] = None, only_primitives_on_init: bool = False, implements_scale_info: bool = False):
         self.config_id = config_id
         self.type_registry = {'types': {}, 'runtime_api': {}}
-        self.__initial_state = False
+        self._initial_state = False
         self.clear_type_registry()
         self.active_spec_version_id = None
         self.chain_id = None
@@ -290,7 +290,7 @@ class RuntimeConfigurationObject:
 
     def clear_type_registry(self) -> None:
 
-        if not self.__initial_state:
+        if not self._initial_state:
             self.type_registry = {'types': {}, 'runtime_api': {}}
 
             # Class names that contains '<' are excluded because of a side effect that is introduced in
@@ -304,12 +304,12 @@ class RuntimeConfigurationObject:
                 }
             )
 
-        self.__initial_state = True
+        self._initial_state = True
 
     def update_type_registry_types(self, types_dict: dict) -> None:
         from scalecodec.types import Enum, Struct, Set, Tuple
 
-        self.__initial_state = False
+        self._initial_state = False
 
         for type_string, decoder_class_data in types_dict.items():
 
@@ -422,7 +422,7 @@ class RuntimeConfigurationObject:
         if self.type_registry.get('runtime_upgrades'):
 
             if block_number > self.type_registry['runtime_upgrades'][-1][0]:
-                return
+                return None
 
             for max_block_number, runtime_id in reversed(self.type_registry['runtime_upgrades']):
                 if block_number >= max_block_number and runtime_id != -1:
@@ -453,8 +453,8 @@ class RuntimeConfigurationObject:
         if type_string in self._dynamic_class_cache:
             return self._dynamic_class_cache[type_string]
 
-        decoder_class: Optional[type] = None
-        base_decoder_class: Optional[type] = None
+        decoder_class = None
+        base_decoder_class = None
 
         # Check if base decoder class is defined for path
         if 'path' in scale_info_type.value and len(scale_info_type.value['path']) > 0:
@@ -474,12 +474,11 @@ class RuntimeConfigurationObject:
 
             if base_decoder_class and hasattr(base_decoder_class, 'process_scale_info_definition'):
                 # if process_scale_info_definition is implemented result is final
-                assert base_decoder_class is not None
-                decoder_class = type(type_string, (base_decoder_class,), {})
-                decoder_class.process_scale_info_definition(scale_info_type, prefix)
+                decoder_class = type(type_string, (base_decoder_class,), {})  # type: ignore[arg-type]
+                decoder_class.process_scale_info_definition(scale_info_type, prefix)  # type: ignore[attr-defined]
 
                 # Link ScaleInfo RegistryType to decoder class
-                decoder_class.scale_info_type = scale_info_type
+                decoder_class.scale_info_type = scale_info_type  # type: ignore[attr-defined]
 
                 # Cache the dynamically created class
                 self._dynamic_class_cache[type_string] = decoder_class
@@ -492,10 +491,9 @@ class RuntimeConfigurationObject:
         elif 'array' in scale_info_type.value['def']:
 
             if base_decoder_class is None:
-                base_decoder_class = self.get_decoder_class('FixedLengthArray')
-            assert base_decoder_class is not None
+                base_decoder_class = self._require_decoder_class('FixedLengthArray')
 
-            decoder_class = type(type_string, (base_decoder_class,), {
+            decoder_class = type(type_string, (base_decoder_class,), {  # type: ignore[arg-type]
                 'sub_type': f"{prefix}::{scale_info_type.value['def']['array']['type']}",
                 'element_count': scale_info_type.value['def']['array']['len']
             })
@@ -528,10 +526,9 @@ class RuntimeConfigurationObject:
                     type_mapping = [f"{prefix}::{field['type']}" for field in fields]
 
             if base_decoder_class is None:
-                base_decoder_class = self.get_decoder_class(base_type_string)
-            assert base_decoder_class is not None
+                base_decoder_class = self._require_decoder_class(base_type_string)
 
-            decoder_class = type(type_string, (base_decoder_class,), {
+            decoder_class = type(type_string, (base_decoder_class,), {  # type: ignore[arg-type]
                 'type_mapping': type_mapping
             })
             _result = _try_make_tuple_batch_decode(type_mapping, self)
@@ -541,9 +538,7 @@ class RuntimeConfigurationObject:
 
         elif 'sequence' in scale_info_type.value['def']:
             # Vec
-            vec_base = self.get_decoder_class('Vec')
-            assert vec_base is not None
-            decoder_class = type(type_string, (vec_base,), {
+            decoder_class = type(type_string, (self._require_decoder_class('Vec'),), {
                 'sub_type': f"{prefix}::{scale_info_type.value['def']['sequence']['type']}"
             })
 
@@ -579,10 +574,9 @@ class RuntimeConfigurationObject:
                     type_mapping[variant['index']] = (variant['name'], enum_value)
 
             if base_decoder_class is None:
-                base_decoder_class = self.get_decoder_class("Enum")
-            assert base_decoder_class is not None
+                base_decoder_class = self._require_decoder_class("Enum")
 
-            decoder_class = type(type_string, (base_decoder_class,), {
+            decoder_class = type(type_string, (base_decoder_class,), {  # type: ignore[arg-type]
                 'type_mapping': type_mapping
             })
 
@@ -590,9 +584,7 @@ class RuntimeConfigurationObject:
 
             type_mapping = [f"{prefix}::{f}" for f in scale_info_type.value['def']['tuple']]
 
-            tuple_base = self.get_decoder_class('Tuple')
-            assert tuple_base is not None
-            decoder_class = type(type_string, (tuple_base,), {
+            decoder_class = type(type_string, (self._require_decoder_class('Tuple'),), {
                 'type_mapping': type_mapping
             })
             _result = _try_make_tuple_batch_decode(type_mapping, self)
@@ -620,7 +612,7 @@ class RuntimeConfigurationObject:
 
         # Link ScaleInfo RegistryType to decoder class
 
-        decoder_class.scale_info_type = scale_info_type
+        decoder_class.scale_info_type = scale_info_type  # type: ignore[attr-defined]
 
         # Cache the dynamically created class
         self._dynamic_class_cache[type_string] = decoder_class
@@ -697,7 +689,7 @@ class RuntimeConfigurationObject:
                         addres_type = self.get_decoder_class(type_string)
 
                         if addres_type is self.get_decoder_class('sp_runtime::multiaddress::MultiAddress'):
-                            for address_param in addres_type.scale_info_type.value['params']:
+                            for address_param in addres_type.scale_info_type.value['params']:  # type: ignore[union-attr]
                                 if address_param['name'] == 'AccountId':
                                     # Set AccountId
                                     types_dict['AccountId'] = f'{prefix}::{address_param["type"]}'
@@ -728,7 +720,14 @@ class ScaleDecoder(ABC):
 
     sub_type: Optional[str] = None
 
-    runtime_config: Optional['RuntimeConfigurationObject'] = None
+    runtime_config = None
+
+    data: Optional[ScaleBytes]
+    decoded: bool
+    value_object: Any
+    value_serialized: Any
+    data_start_offset: Optional[int]
+    data_end_offset: Optional[int]
 
     def __init__(self, data: ScaleBytes, sub_type: Optional[str] = None, runtime_config: Optional[RuntimeConfigurationObject] = None):
         """
