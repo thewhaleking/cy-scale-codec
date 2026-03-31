@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from re import Pattern
 from typing import Any, Optional, Union, overload
 from typing import Literal
 
@@ -21,6 +22,9 @@ class RuntimeConfigurationObject:
     ss58_format: Optional[int]
     implements_scale_info: bool
     type_registry: dict
+    __initial_state: bool
+    bracket_match_re: Pattern[str]
+    arrow_match_re: Pattern[str]
 
     def __init__(
         self,
@@ -59,6 +63,10 @@ class RuntimeConfigurationObject:
         data: Optional[ScaleBytes] = None,
         **kwargs: Any,
     ) -> ScaleType: ...
+    @classmethod
+    def convert_type_string(cls, name: str) -> str: ...
+    @classmethod
+    def all_subclasses(cls, class_) -> set: ...
 
 class RuntimeConfiguration(RuntimeConfigurationObject): ...
 

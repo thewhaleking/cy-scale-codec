@@ -792,7 +792,7 @@ class ScaleDecoder(ABC):
             tuple_contents = cls.type_string[1:-1]
 
             # replace subtype types
-            sub_types = re.search(r'([A-Za-z]+[<][^>]*[>])', tuple_contents)
+            sub_types = re.search(r'([A-Za-z]+<[^>]*>)', tuple_contents)
             if sub_types:
                 sub_types = sub_types.groups()
                 for sub_type in sub_types:
