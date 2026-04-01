@@ -416,8 +416,8 @@ class RuntimeConfigurationObject:
         Runtime id
         """
         if self.type_registry.get('runtime_upgrades'):
-
-            if block_number > self.type_registry['runtime_upgrades'][-1][0]:
+            upgrades = self.type_registry['runtime_upgrades']
+            if block_number > upgrades[len(upgrades) - 1][0]:
                 return None
 
             for max_block_number, runtime_id in reversed(self.type_registry['runtime_upgrades']):
@@ -437,10 +437,12 @@ class RuntimeConfigurationObject:
 
         """
         if self.type_registry.get('runtime_upgrades'):
-            if self.type_registry['runtime_upgrades'][-1][1] == -1:
-                self.type_registry['runtime_upgrades'][-1][0] = block_number
-            elif block_number > self.type_registry['runtime_upgrades'][-1][0]:
-                self.type_registry['runtime_upgrades'].append([block_number, -1])
+            upgrades = self.type_registry['runtime_upgrades']
+            last = len(upgrades) - 1
+            if upgrades[last][1] == -1:
+                upgrades[last][0] = block_number
+            elif block_number > upgrades[last][0]:
+                upgrades.append([block_number, -1])
 
     def get_decoder_class_for_scale_info_definition(
             self, type_string: str, scale_info_type: 'GenericRegistryType', prefix: str
@@ -465,7 +467,8 @@ class RuntimeConfigurationObject:
 
                 if base_decoder_class is None:
                     # Try catch-all type
-                    catch_all_path = '*::' * (len(scale_info_type.value['path']) - 1) + scale_info_type.value["path"][-1]
+                    _path = scale_info_type.value["path"]
+                    catch_all_path = '*::' * (len(_path) - 1) + _path[len(_path) - 1]
                     base_decoder_class = self.get_decoder_class(catch_all_path)
 
             if base_decoder_class and hasattr(base_decoder_class, 'process_scale_info_definition'):
