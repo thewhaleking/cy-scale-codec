@@ -40,9 +40,8 @@ cdef class ScaleBytes:
         bytearray
         """
         cdef int start = self.offset
-        cdef unsigned char[:] view = self.data
         self.offset = start + length
-        return bytearray(view[start:start + length])
+        return self.data[start:start + length]
 
     cpdef bytearray get_remaining_bytes(self):
         """
@@ -52,10 +51,9 @@ cdef class ScaleBytes:
         -------
         bytearray
         """
-        cdef unsigned char[:] view = self.data
         cdef int start = self.offset
         self.offset = self.length
-        return bytearray(view[start:])
+        return self.data[start:]
 
     cpdef int get_remaining_length(self):
         """
