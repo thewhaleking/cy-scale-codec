@@ -15,8 +15,11 @@ def _try_make_tuple_batch_decode(type_mapping, rc):
     sub-type has both _batch_decode and _fixed_size.  Returns None otherwise.
     """
     specs = []
+    keys = []
+    is_struct = type_mapping and isinstance(type_mapping[0], (list, tuple))
     for ts in type_mapping:
         if isinstance(ts, (list, tuple)):
+            keys.append(ts[0])
             ts = ts[1]      # Struct field: [name, type_string]
         if ts is None:
             ts = 'Null'
@@ -29,17 +32,34 @@ def _try_make_tuple_batch_decode(type_mapping, rc):
             return None
         specs.append((fast_fn, size))
 
-    _specs = specs  # capture for closure
-
-    def _batch_decode(data, __specs=_specs):
-        result = []
-        offset = 0
-        for fast_fn, size in __specs:
-            result.append(fast_fn(data[offset:]))
-            offset += size
-        return tuple(result)
-
     total_size = sum(s for _, s in specs)
+
+    if is_struct:
+        _specs = specs
+        _keys = keys
+
+        def _batch_decode(data, __specs=_specs, __keys=_keys):
+            result = {}
+            offset = 0
+            for (fast_fn, size), key in zip(__specs, __keys):
+                result[key] = fast_fn(data[offset:])
+                offset += size
+            return result
+    elif len(specs) == 1:
+        _fn, _sz = specs[0]
+
+        def _batch_decode(data, __fn=_fn):
+            return __fn(data)
+    else:
+        _specs = specs
+
+        def _batch_decode(data, __specs=_specs):
+            result = []
+            offset = 0
+            for fast_fn, size in __specs:
+                result.append(fast_fn(data[offset:]))
+                offset += size
+            return tuple(result)
 
     return _batch_decode, total_size
 

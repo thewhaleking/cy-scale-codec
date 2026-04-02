@@ -86,5 +86,80 @@ class TestRuntimeIdCache(unittest.TestCase):
         self.assertGreater(runtime_config.get_runtime_id_from_upgrades(99999999998), 0)
 
 
+class TestBatchDecodeStructResult(unittest.TestCase):
+    """
+    batch_decode must return a dict for struct types, not a tuple or list.
+    Regression test for _try_make_tuple_batch_decode returning tuple(result)
+    for structs, which caused fixed-point types like {bits: u128} to come back
+    as (value,) instead of {'bits': value}.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.rc = RuntimeConfigurationObject()
+        cls.rc.update_type_registry(load_type_registry_preset("core"))
+
+    def test_struct_fast_path_returns_dict(self):
+        bits_value = 1536564093060666126
+        import struct as _struct
+        from scalecodec.base import _try_make_tuple_batch_decode
+
+        data = _struct.pack("<Q", bits_value)
+        type_mapping = [["bits", "U64"]]
+        fast = _try_make_tuple_batch_decode(type_mapping, self.rc)
+        self.assertIsNotNone(fast, "Expected a fast-path function to be generated")
+        decoded = fast[0](data)
+        self.assertIsInstance(decoded, dict, "Struct fast path must return a dict")
+        self.assertEqual(decoded, {"bits": bits_value})
+
+    def test_single_field_struct_via_batch_decode(self):
+        bits_value = 999999999
+        import struct as _struct
+
+        data = _struct.pack("<Q", bits_value)
+
+        StructBase = self.rc.get_decoder_class("Struct")
+        MyStruct = type(
+            "MyStruct", (StructBase,), {"type_mapping": [["bits", "U64"]]}
+        )
+        MyStruct.runtime_config = self.rc
+
+        # normal decode path
+        from scalecodec.base import ScaleBytes
+
+        obj = MyStruct(data=ScaleBytes(data))
+        normal_result = obj.decode(check_remaining=False)
+        self.assertEqual(normal_result, {"bits": bits_value})
+
+        # batch_decode path must match
+        batch_result = self.rc.batch_decode(
+            [type_string := "U64"],  # use primitive directly as sanity check
+            [data],
+        )
+        self.assertEqual(batch_result[0], bits_value)
+
+    def test_tuple_fast_path_single_element_returns_scalar(self):
+        from scalecodec.base import _try_make_tuple_batch_decode
+        import struct as _struct
+
+        data = _struct.pack("<Q", 42)
+        fast = _try_make_tuple_batch_decode(["U64"], self.rc)
+        self.assertIsNotNone(fast)
+        decoded = fast[0](data)
+        self.assertNotIsInstance(decoded, (list, tuple))
+        self.assertEqual(decoded, 42)
+
+    def test_tuple_fast_path_multi_element_returns_tuple(self):
+        from scalecodec.base import _try_make_tuple_batch_decode
+        import struct as _struct
+
+        data = _struct.pack("<QQ", 1, 2)
+        fast = _try_make_tuple_batch_decode(["U64", "U64"], self.rc)
+        self.assertIsNotNone(fast)
+        decoded = fast[0](data)
+        self.assertIsInstance(decoded, tuple)
+        self.assertEqual(decoded, (1, 2))
+
+
 if __name__ == "__main__":
     unittest.main()
