@@ -119,9 +119,7 @@ class TestBatchDecodeStructResult(unittest.TestCase):
         data = _struct.pack("<Q", bits_value)
 
         StructBase = self.rc.get_decoder_class("Struct")
-        MyStruct = type(
-            "MyStruct", (StructBase,), {"type_mapping": [["bits", "U64"]]}
-        )
+        MyStruct = type("MyStruct", (StructBase,), {"type_mapping": [["bits", "U64"]]})
         MyStruct.runtime_config = self.rc
 
         # normal decode path
