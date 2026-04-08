@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from re import Pattern
 from typing import Any, Generic, Optional, Type, TypeVar, Union, overload
 from typing import Literal
@@ -20,7 +20,6 @@ class ScaleDecoder(ABC, Generic[T_co]):
     type_mapping: Any
     sub_type: Optional[str]
 
-    @abstractmethod
     def process(self) -> T_co: ...
     def process_encode(self, value: Any) -> ScaleBytes: ...
     def decode(self, check_remaining: bool = True) -> T_co: ...
@@ -104,6 +103,8 @@ class RuntimeConfigurationObject:
     def all_subclasses(cls, class_: type) -> set: ...
 
 class RuntimeConfiguration(RuntimeConfigurationObject): ...
+
+class ScalePrimitive(ScaleType[Any], ABC): ...
 
 # Imported here so callers only need `from scalecodec.base import ...`
 from scalecodec.types import GenericMetadataVersioned as GenericMetadataVersioned
