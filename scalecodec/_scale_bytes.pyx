@@ -43,6 +43,12 @@ cdef class ScaleBytes:
         self.offset = start + length
         return self.data[start:start + length]
 
+    cpdef int get_next_u8(self):
+        """Retrieve the next byte as an int without creating a bytearray slice."""
+        cdef int b = self.data[self.offset]
+        self.offset += 1
+        return b
+
     cpdef bytearray get_remaining_bytes(self):
         """
         Retrieves all remaining bytes from the stream

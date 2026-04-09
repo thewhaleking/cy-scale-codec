@@ -4,5 +4,6 @@ cdef class ScaleBytes:
     cdef public int offset
     cdef public int length
     cpdef bytearray get_next_bytes(self, int length)
+    cpdef int get_next_u8(self)
     cpdef bytearray get_remaining_bytes(self)
     cpdef int get_remaining_length(self)

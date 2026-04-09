@@ -312,6 +312,8 @@ class RuntimeConfigurationObject:
         raise NotImplementedError('Decoder class for "{}" not found'.format(type_string))
 
     def clear_type_registry(self) -> None:
+        self.__dict__.pop('_struct_field_cache', None)
+        self.__dict__.pop('_enum_variant_cache', None)
 
         if not self._initial_state:
             self.type_registry = {'types': {}, 'runtime_api': {}}
@@ -401,6 +403,8 @@ class RuntimeConfigurationObject:
             self.type_registry['types'][type_string.lower()] = decoder_class
 
     def update_type_registry(self, type_registry: dict) -> None:
+        self.__dict__.pop('_struct_field_cache', None)
+        self.__dict__.pop('_enum_variant_cache', None)
 
         # Set runtime ID if set
         self.active_spec_version_id = type_registry.get('runtime_id')
@@ -1062,13 +1066,21 @@ class ScaleType(ScaleDecoder, ABC):
         runtime_config: RuntimeConfigurationObject
         """
         self.metadata = metadata
-
-        # Container for meta information
-        self.meta_info: dict = {}
+        self.meta_info = None  # lazily initialized to {} on first access
 
         if not data:
             data = ScaleBytes(bytearray())
         super().__init__(data, sub_type, runtime_config=runtime_config)
+
+    @property
+    def meta_info(self):
+        if self._meta_info is None:
+            self._meta_info = {}
+        return self._meta_info
+
+    @meta_info.setter
+    def meta_info(self, value):
+        self._meta_info = value
 
     def __getitem__(self, item):
         return self.value_object[item]

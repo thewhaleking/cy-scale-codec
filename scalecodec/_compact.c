@@ -1564,6 +1564,7 @@ struct __pyx_defaults {
 
 struct __pyx_vtabstruct_10scalecodec_12_scale_bytes_ScaleBytes {
   PyObject *(*get_next_bytes)(struct __pyx_obj_10scalecodec_12_scale_bytes_ScaleBytes *, int, int __pyx_skip_dispatch);
+  int (*get_next_u8)(struct __pyx_obj_10scalecodec_12_scale_bytes_ScaleBytes *, int __pyx_skip_dispatch);
   PyObject *(*get_remaining_bytes)(struct __pyx_obj_10scalecodec_12_scale_bytes_ScaleBytes *, int __pyx_skip_dispatch);
   int (*get_remaining_length)(struct __pyx_obj_10scalecodec_12_scale_bytes_ScaleBytes *, int __pyx_skip_dispatch);
 };

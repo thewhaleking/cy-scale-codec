@@ -198,13 +198,25 @@ class Struct(ScaleType):
         result = {}
         self.value_object = {}
 
-        for key, data_type in self.type_mapping:
-            if data_type is None:
-                data_type = 'Null'
-            field_obj = self.process_type(data_type, metadata=self.metadata)
+        # Cache resolved decoder classes on the RC to avoid repeated get_decoder_class lookups.
+        # Keyed on RC (not class) so different RC instances don't share stale decoders.
+        rc = self.runtime_config
+        _struct_cache = rc.__dict__.setdefault('_struct_field_cache', {})
+        _cache_key = self.__class__
+        _field_decoders = _struct_cache.get(_cache_key)
+        if _field_decoders is None:
+            _field_decoders = []
+            for key, data_type in self.type_mapping:
+                dc = rc.get_decoder_class(data_type or 'Null')
+                _field_decoders.append((key, dc))
+            _struct_cache[_cache_key] = _field_decoders
 
+        metadata = self.metadata
+        data = self.data
+        for key, decoder_class in _field_decoders:
+            field_obj = decoder_class(data=data, metadata=metadata)
+            field_obj.decode(check_remaining=False)
             self.value_object[key] = field_obj
-
             result[key] = field_obj.value
 
         return result
@@ -582,8 +594,10 @@ class Vec(ScaleType):
     def process(self):
         element_count = self.process_type('Compact<u32>').value
 
+        element_class = self.runtime_config.get_decoder_class(self.sub_type)
+
         # Check for Bytes processing
-        if self.runtime_config.get_decoder_class(self.sub_type) is U8:
+        if element_class is U8:
             self.value_object = self.get_next_bytes(element_count)
 
             try:
@@ -591,9 +605,20 @@ class Vec(ScaleType):
             except UnicodeDecodeError:
                 return '0x{}'.format(self.value_object.hex())
 
+        # Fast path: fixed-size element types with _batch_decode (primitives, fixed structs)
+        fast_fn = getattr(element_class, '_batch_decode', None)
+        fixed_size = getattr(element_class, '_fixed_size', None)
+        if fast_fn is not None and fixed_size is not None:
+            raw = self.data.get_next_bytes(element_count * fixed_size)
+            result = [fast_fn(raw[i * fixed_size:(i + 1) * fixed_size]) for i in range(element_count)]
+            self.value_object = result
+            return result
+
         result = []
-        for _ in range(0, element_count):
-            element = self.process_type(self.sub_type, metadata=self.metadata)
+        metadata = self.metadata
+        for _ in range(element_count):
+            element = element_class(data=self.data, metadata=metadata)
+            element.decode(check_remaining=False)
             self.elements.append(element)
             result.append(element.value)
 
@@ -851,24 +876,36 @@ class Enum(ScaleType):
         super().__init__(data, **kwargs)
 
     def process(self):
-        self.index = int(self.get_next_bytes(1).hex(), 16)
+        self.index = self.data.get_next_u8()
 
         if self.type_mapping:
             try:
                 enum_type_mapping = self.type_mapping[self.index]
-
-                if enum_type_mapping[1] is None or enum_type_mapping[1] == 'Null':
-                    self.value_object = (enum_type_mapping[0], None)
-                    return enum_type_mapping[0]
-
-                result_obj = self.process_type(enum_type_mapping[1], metadata=self.metadata)
-
-                self.value_object = (enum_type_mapping[0], result_obj)
-
-                return {enum_type_mapping[0]: result_obj.value}
-
             except IndexError:
                 raise ValueError("Index '{}' not present in Enum type mapping".format(self.index))
+
+            variant_name = enum_type_mapping[0]
+            variant_type = enum_type_mapping[1]
+
+            if variant_type is None or variant_type == 'Null':
+                self.value_object = (variant_name, None)
+                return variant_name
+
+            # Cache variant decoder classes on the RC to avoid repeated get_decoder_class calls.
+            # Keyed on RC (not class) so different RC instances don't share stale decoders.
+            rc = self.runtime_config
+            _enum_cache = rc.__dict__.setdefault('_enum_variant_cache', {})
+            _variant_key = (self.__class__, self.index)
+            decoder_class = _enum_cache.get(_variant_key)
+            if decoder_class is None:
+                decoder_class = rc.get_decoder_class(variant_type)
+                _enum_cache[_variant_key] = decoder_class
+
+            result_obj = decoder_class(data=self.data, metadata=self.metadata)
+            result_obj.decode(check_remaining=False)
+
+            self.value_object = (variant_name, result_obj)
+            return {variant_name: result_obj.value}
         else:
             try:
                 return self.value_list[self.index]
