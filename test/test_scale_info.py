@@ -359,7 +359,11 @@ class RuntimeSwitchingTestCase(unittest.TestCase):
         # Switch back to V14 — caches must not carry over stale bittensor entries
         meta_v14_again = self._load_metadata("V14")
         result_a2 = self._decode_u32(meta_v14_again)
-        self.assertEqual(result_a2, 1, "Second decode with V14 after runtime switch should still give 1")
+        self.assertEqual(
+            result_a2,
+            1,
+            "Second decode with V14 after runtime switch should still give 1",
+        )
 
     def test_two_metadata_objects_decode_independently(self):
         """Two metadata objects from different runtimes must decode independently."""
@@ -397,33 +401,36 @@ class RuntimeSwitchingTestCase(unittest.TestCase):
         class DynamicStruct(Struct):
             def __init__(self, data=None, variant=None, **kwargs):
                 # Instance-level type_mapping: variant A = [u8, u16], variant B = [u32]
-                if variant == 'A':
-                    self.type_mapping = [['first', 'U8'], ['second', 'U16']]
+                if variant == "A":
+                    self.type_mapping = [["first", "U8"], ["second", "U16"]]
                 else:
-                    self.type_mapping = [['value', 'U32']]
+                    self.type_mapping = [["value", "U32"]]
                 super().__init__(data, **kwargs)
 
-        rc.type_registry['types']['dynamicstruct'] = DynamicStruct
+        rc.type_registry["types"]["dynamicstruct"] = DynamicStruct
 
         # Decode with variant A: 1 byte + 2 bytes = 0x01 0x0200
-        obj_a = DynamicStruct(data=SB(bytes([0x01, 0x02, 0x00])), variant='A',
-                              runtime_config=rc)
+        obj_a = DynamicStruct(
+            data=SB(bytes([0x01, 0x02, 0x00])), variant="A", runtime_config=rc
+        )
         obj_a.decode()
-        self.assertEqual(obj_a.value['first'], 1)
-        self.assertEqual(obj_a.value['second'], 2)
+        self.assertEqual(obj_a.value["first"], 1)
+        self.assertEqual(obj_a.value["second"], 2)
 
         # Decode with variant B: 4 bytes = 0x05000000
-        obj_b = DynamicStruct(data=SB(bytes([0x05, 0x00, 0x00, 0x00])), variant='B',
-                              runtime_config=rc)
+        obj_b = DynamicStruct(
+            data=SB(bytes([0x05, 0x00, 0x00, 0x00])), variant="B", runtime_config=rc
+        )
         obj_b.decode()
-        self.assertEqual(obj_b.value['value'], 5)
+        self.assertEqual(obj_b.value["value"], 5)
 
         # Decode variant A again — must not use variant B's cached decoders
-        obj_a2 = DynamicStruct(data=SB(bytes([0x07, 0x08, 0x00])), variant='A',
-                               runtime_config=rc)
+        obj_a2 = DynamicStruct(
+            data=SB(bytes([0x07, 0x08, 0x00])), variant="A", runtime_config=rc
+        )
         obj_a2.decode()
-        self.assertEqual(obj_a2.value['first'], 7)
-        self.assertEqual(obj_a2.value['second'], 8)
+        self.assertEqual(obj_a2.value["first"], 7)
+        self.assertEqual(obj_a2.value["second"], 8)
 
 
 if __name__ == "__main__":

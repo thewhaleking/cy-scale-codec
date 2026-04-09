@@ -34,6 +34,15 @@ class ScaleType(ScaleDecoder[T_co], ABC, Generic[T_co]):
     metadata: Any
     meta_info: dict
 
+    def __init__(
+        self,
+        data: Optional[ScaleBytes] = None,
+        sub_type: Optional[str] = None,
+        metadata: Optional[Any] = None,
+        runtime_config: Optional["RuntimeConfigurationObject"] = None,
+        **kwargs: Any,
+    ) -> None: ...
+
 class RuntimeConfigurationObject:
     config_id: Optional[str]
     ss58_format: Optional[int]
@@ -103,7 +112,6 @@ class RuntimeConfigurationObject:
     def all_subclasses(cls, class_: type) -> set: ...
 
 class RuntimeConfiguration(RuntimeConfigurationObject): ...
-
 class ScalePrimitive(ScaleType[Any], ABC): ...
 
 # Imported here so callers only need `from scalecodec.base import ...`
