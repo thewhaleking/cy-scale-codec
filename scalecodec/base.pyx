@@ -312,8 +312,6 @@ class RuntimeConfigurationObject:
         raise NotImplementedError('Decoder class for "{}" not found'.format(type_string))
 
     def clear_type_registry(self) -> None:
-        self.__dict__.pop('_struct_field_cache', None)
-        self.__dict__.pop('_enum_variant_cache', None)
 
         if not self._initial_state:
             self.type_registry = {'types': {}, 'runtime_api': {}}
@@ -403,8 +401,6 @@ class RuntimeConfigurationObject:
             self.type_registry['types'][type_string.lower()] = decoder_class
 
     def update_type_registry(self, type_registry: dict) -> None:
-        self.__dict__.pop('_struct_field_cache', None)
-        self.__dict__.pop('_enum_variant_cache', None)
 
         # Set runtime ID if set
         self.active_spec_version_id = type_registry.get('runtime_id')

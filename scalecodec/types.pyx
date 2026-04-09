@@ -198,26 +198,40 @@ class Struct(ScaleType):
         result = {}
         self.value_object = {}
 
-        # Cache resolved decoder classes on the RC to avoid repeated get_decoder_class lookups.
-        # Keyed on RC (not class) so different RC instances don't share stale decoders.
         rc = self.runtime_config
-        _struct_cache = rc.__dict__.setdefault('_struct_field_cache', {})
-        _cache_key = self.__class__
-        _field_decoders = _struct_cache.get(_cache_key)
-        if _field_decoders is None:
-            _field_decoders = []
-            for key, data_type in self.type_mapping:
-                dc = rc.get_decoder_class(data_type or 'Null')
-                _field_decoders.append((key, dc))
-            _struct_cache[_cache_key] = _field_decoders
-
         metadata = self.metadata
         data = self.data
-        for key, decoder_class in _field_decoders:
-            field_obj = decoder_class(data=data, metadata=metadata)
-            field_obj.decode(check_remaining=False)
-            self.value_object[key] = field_obj
-            result[key] = field_obj.value
+
+        # Cache field decoder classes only when type_mapping is a stable class-level
+        # attribute. If it was set on the instance (e.g. GenericExtrinsicV4 builds its
+        # type_mapping dynamically in __init__ based on signed extensions), every instance
+        # may differ, so caching by class would return wrong decoders.
+        if 'type_mapping' not in self.__dict__:
+            if metadata is not None:
+                _field_cache = metadata.__dict__.setdefault('_struct_field_cache', {})
+            else:
+                _field_cache = rc.__dict__.setdefault('_struct_field_cache_no_meta', {})
+            _field_decoders = _field_cache.get(self.__class__)
+            if _field_decoders is None:
+                _field_decoders = [(key, rc.get_decoder_class(data_type or 'Null'))
+                                   for key, data_type in self.type_mapping]
+                _field_cache[self.__class__] = _field_decoders
+        else:
+            _field_decoders = None
+
+        if _field_decoders is not None:
+            for key, decoder_class in _field_decoders:
+                field_obj = decoder_class(data=data, metadata=metadata)
+                field_obj.decode(check_remaining=False)
+                self.value_object[key] = field_obj
+                result[key] = field_obj.value
+        else:
+            for key, data_type in self.type_mapping:
+                dc = rc.get_decoder_class(data_type or 'Null')
+                field_obj = dc(data=data, metadata=metadata)
+                field_obj.decode(check_remaining=False)
+                self.value_object[key] = field_obj
+                result[key] = field_obj.value
 
         return result
 
@@ -891,10 +905,12 @@ class Enum(ScaleType):
                 self.value_object = (variant_name, None)
                 return variant_name
 
-            # Cache variant decoder classes on the RC to avoid repeated get_decoder_class calls.
-            # Keyed on RC (not class) so different RC instances don't share stale decoders.
             rc = self.runtime_config
-            _enum_cache = rc.__dict__.setdefault('_enum_variant_cache', {})
+            metadata = self.metadata
+            if metadata is not None:
+                _enum_cache = metadata.__dict__.setdefault('_enum_variant_cache', {})
+            else:
+                _enum_cache = rc.__dict__.setdefault('_enum_variant_cache_no_meta', {})
             _variant_key = (self.__class__, self.index)
             decoder_class = _enum_cache.get(_variant_key)
             if decoder_class is None:

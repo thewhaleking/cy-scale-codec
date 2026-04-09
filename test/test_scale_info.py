@@ -306,5 +306,125 @@ class ScaleInfoTestCase(unittest.TestCase):
         )
 
 
+class RuntimeSwitchingTestCase(unittest.TestCase):
+    """
+    Verify that Struct/Enum decoder caches remain correct across runtime switches.
+
+    If the caches are keyed incorrectly (e.g. by id() of an already-freed object),
+    a second add_portable_registry call can poison the cache and cause AttributeError
+    or wrong values when decoding with a previously-loaded metadata.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        module_path = os.path.dirname(__file__)
+        cls.fixture_dict = load_type_registry_file(
+            os.path.join(module_path, "fixtures", "metadata_hex.json")
+        )
+
+        cls.rc = RuntimeConfigurationObject(ss58_format=42)
+        cls.rc.update_type_registry(load_type_registry_preset("core"))
+
+    def _load_metadata(self, fixture_key):
+        meta = self.rc.create_scale_object(
+            "MetadataVersioned", data=ScaleBytes(self.fixture_dict[fixture_key])
+        )
+        meta.decode()
+        self.rc.add_portable_registry(meta)
+        return meta
+
+    def _decode_u32(self, metadata):
+        """Find and decode the u32 type in the current registry, return value."""
+        for i in range(20):
+            cls = self.rc.get_decoder_class(f"scale_info::{i}")
+            if cls is not None and cls.__name__ == "U32":
+                obj = self.rc.create_scale_object(
+                    f"scale_info::{i}", ScaleBytes("0x01000000"), metadata=metadata
+                )
+                obj.decode()
+                return obj.value
+        return None
+
+    def test_runtime_switching_preserves_correctness(self):
+        """Switching add_portable_registry must not corrupt the decoder cache."""
+        meta_v14 = self._load_metadata("V14")
+        result_a1 = self._decode_u32(meta_v14)
+        self.assertEqual(result_a1, 1, "First decode with V14 should give 1")
+
+        # Switch to a different runtime
+        meta_bittensor = self._load_metadata("bittensor_test")
+        result_b = self._decode_u32(meta_bittensor)
+        self.assertEqual(result_b, 1, "Decode with bittensor_test should give 1")
+
+        # Switch back to V14 — caches must not carry over stale bittensor entries
+        meta_v14_again = self._load_metadata("V14")
+        result_a2 = self._decode_u32(meta_v14_again)
+        self.assertEqual(result_a2, 1, "Second decode with V14 after runtime switch should still give 1")
+
+    def test_two_metadata_objects_decode_independently(self):
+        """Two metadata objects from different runtimes must decode independently."""
+        meta_v14 = self._load_metadata("V14")
+        self.rc.add_portable_registry(meta_v14)
+
+        meta_bittensor = self._load_metadata("bittensor_test")
+        self.rc.add_portable_registry(meta_bittensor)
+
+        # Both metadata objects should decode u32 correctly using their own caches
+        result_v14 = self._decode_u32(meta_v14)
+        result_bittensor = self._decode_u32(meta_bittensor)
+
+        self.assertEqual(result_v14, 1)
+        self.assertEqual(result_bittensor, 1)
+
+    def test_instance_type_mapping_not_cached(self):
+        """
+        Structs that set type_mapping as an instance attribute in __init__ (e.g.
+        GenericExtrinsicV4 builds it from signed extensions) must never share a cache
+        entry with another instance of the same class that has a different type_mapping.
+
+        This reproduces the bug where the Struct field-decoder cache was keyed only by
+        class, causing a second instance with a different type_mapping to use the first
+        instance's stale decoders and corrupt the decode stream.
+        """
+        from scalecodec.types import Struct
+        from scalecodec._scale_bytes import ScaleBytes as SB
+
+        rc = RuntimeConfigurationObject()
+        rc.update_type_registry(load_type_registry_preset("core"))
+
+        # Two subclasses share the same Python class but build different instance
+        # type_mappings in __init__ — simulating GenericExtrinsicV4's pattern.
+        class DynamicStruct(Struct):
+            def __init__(self, data=None, variant=None, **kwargs):
+                # Instance-level type_mapping: variant A = [u8, u16], variant B = [u32]
+                if variant == 'A':
+                    self.type_mapping = [['first', 'U8'], ['second', 'U16']]
+                else:
+                    self.type_mapping = [['value', 'U32']]
+                super().__init__(data, **kwargs)
+
+        rc.type_registry['types']['dynamicstruct'] = DynamicStruct
+
+        # Decode with variant A: 1 byte + 2 bytes = 0x01 0x0200
+        obj_a = DynamicStruct(data=SB(bytes([0x01, 0x02, 0x00])), variant='A',
+                              runtime_config=rc)
+        obj_a.decode()
+        self.assertEqual(obj_a.value['first'], 1)
+        self.assertEqual(obj_a.value['second'], 2)
+
+        # Decode with variant B: 4 bytes = 0x05000000
+        obj_b = DynamicStruct(data=SB(bytes([0x05, 0x00, 0x00, 0x00])), variant='B',
+                              runtime_config=rc)
+        obj_b.decode()
+        self.assertEqual(obj_b.value['value'], 5)
+
+        # Decode variant A again — must not use variant B's cached decoders
+        obj_a2 = DynamicStruct(data=SB(bytes([0x07, 0x08, 0x00])), variant='A',
+                               runtime_config=rc)
+        obj_a2.decode()
+        self.assertEqual(obj_a2.value['first'], 7)
+        self.assertEqual(obj_a2.value['second'], 8)
+
+
 if __name__ == "__main__":
     unittest.main()
