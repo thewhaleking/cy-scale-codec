@@ -1078,6 +1078,9 @@ class ScaleType(ScaleDecoder, ABC):
     def meta_info(self, value):
         self._meta_info = value
 
+    def __class_getitem__(cls, item):
+        return cls
+
     def __getitem__(self, item):
         return self.value_object[item]
 
