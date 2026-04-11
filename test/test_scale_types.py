@@ -17,8 +17,10 @@
 import datetime
 import os
 import unittest
+from decimal import Decimal
 
 from scalecodec.types import GenericContractExecResult
+from scalecodec.utils.math import fixed_to_float, fixed_to_decimal
 
 from scalecodec.base import (
     ScaleDecoder,
@@ -1057,3 +1059,82 @@ class TestScaleTypes(unittest.TestCase):
 
         raw_bytes_obj.encode(data)
         self.assertEqual(ScaleBytes(data), raw_bytes_obj.data)
+
+
+class TestFixedPoint(unittest.TestCase):
+    """Tests for fixed_to_float / fixed_to_decimal utils (binary Q fixed-point)."""
+
+    # U64F64: integer=0, fractional bits = 1489050730165858261
+    # expected float = 1489050730165858261 / 2**64 ≈ 0.08073...
+    BITS_U64F64 = 1489050730165858261
+    EXPECTED_FLOAT = 1489050730165858261 / (2**64)
+
+    # U64F64 exact round-trip: 1.5 = (1 << 64) | (1 << 63)
+    BITS_ONE_HALF = (1 << 64) | (1 << 63)  # integer=1, frac=0.5
+
+    # U32F32: 2.25 = (2 << 32) | (1 << 30)
+    BITS_U32F32 = (2 << 32) | (1 << 30)
+
+    # --- fixed_to_float ---
+
+    def test_float_dict_input(self):
+        result = fixed_to_float({"bits": self.BITS_U64F64})
+        self.assertAlmostEqual(result, self.EXPECTED_FLOAT, places=15)
+
+    def test_float_int_input(self):
+        result = fixed_to_float(self.BITS_U64F64)
+        self.assertAlmostEqual(result, self.EXPECTED_FLOAT, places=15)
+
+    def test_float_exact_one_and_half(self):
+        result = fixed_to_float(self.BITS_ONE_HALF)
+        self.assertAlmostEqual(result, 1.5, places=15)
+
+    def test_float_u32f32(self):
+        result = fixed_to_float(self.BITS_U32F32, frac_bits=32)
+        self.assertAlmostEqual(result, 2.25, places=9)
+
+    def test_float_zero(self):
+        self.assertEqual(fixed_to_float(0), 0.0)
+        self.assertEqual(fixed_to_float({"bits": 0}), 0.0)
+
+    def test_float_integer_only(self):
+        # 5.0 in U64F64: integer_part=5, frac=0
+        bits = 5 << 64
+        self.assertEqual(fixed_to_float(bits), 5.0)
+
+    # --- fixed_to_decimal ---
+
+    def test_decimal_dict_input(self):
+        result = fixed_to_decimal({"bits": self.BITS_U64F64})
+        self.assertIsInstance(result, Decimal)
+        expected = Decimal(self.BITS_U64F64) / Decimal(2**64)
+        self.assertEqual(result, expected)
+
+    def test_decimal_int_input(self):
+        result = fixed_to_decimal(self.BITS_U64F64)
+        expected = Decimal(self.BITS_U64F64) / Decimal(2**64)
+        self.assertEqual(result, expected)
+
+    def test_decimal_exact_one_and_half(self):
+        result = fixed_to_decimal(self.BITS_ONE_HALF)
+        self.assertEqual(result, Decimal("1.5"))
+
+    def test_decimal_u32f32(self):
+        result = fixed_to_decimal(self.BITS_U32F32, frac_bits=32)
+        self.assertEqual(result, Decimal("2.25"))
+
+    def test_decimal_zero(self):
+        self.assertEqual(fixed_to_decimal(0), Decimal(0))
+        self.assertEqual(fixed_to_decimal({"bits": 0}), Decimal(0))
+
+    def test_decimal_integer_only(self):
+        bits = 7 << 64
+        self.assertEqual(fixed_to_decimal(bits), Decimal(7))
+
+    def test_decimal_more_precise_than_float(self):
+        # For the same bits, Decimal result must differ from float due to
+        # float rounding, confirming Decimal is the higher-precision path.
+        bits = self.BITS_U64F64
+        f = fixed_to_float(bits)
+        d = fixed_to_decimal(bits)
+        self.assertNotEqual(d, Decimal(str(f)))

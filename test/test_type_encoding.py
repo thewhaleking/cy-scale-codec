@@ -20,7 +20,25 @@ from scalecodec.base import ScaleBytes, ScaleDecoder, RuntimeConfiguration
 from scalecodec.type_registry import load_type_registry_preset, load_type_registry_file
 
 from scalecodec.types import CompactU32, Struct
-from scalecodec._primitives import ScaleIntPrimitive, U8, U16, U32, U64, U128, U256, I8, I16, I32, I64, I128, I256, F32, F64, Bool, H256
+from scalecodec._primitives import (
+    ScaleIntPrimitive,
+    U8,
+    U16,
+    U32,
+    U64,
+    U128,
+    U256,
+    I8,
+    I16,
+    I32,
+    I64,
+    I128,
+    I256,
+    F32,
+    F64,
+    Bool,
+    H256,
+)
 
 
 class TestScaleTypeEncoding(unittest.TestCase):
@@ -510,7 +528,9 @@ class TestScaleIntPrimitive(unittest.TestCase):
     NON_INT_TYPES = [F32, F64, Bool, H256]
 
     def _decode(self, type_str, hex_data):
-        obj = RuntimeConfiguration().create_scale_object(type_str, data=ScaleBytes(hex_data))
+        obj = RuntimeConfiguration().create_scale_object(
+            type_str, data=ScaleBytes(hex_data)
+        )
         obj.decode()
         return obj
 
@@ -529,48 +549,48 @@ class TestScaleIntPrimitive(unittest.TestCase):
                 self.assertFalse(issubclass(cls, ScaleIntPrimitive))
 
     def test_int_conversion(self):
-        obj = self._decode('U32', '0x05000000')
+        obj = self._decode("U32", "0x05000000")
         self.assertEqual(int(obj), 5)
         self.assertIsInstance(int(obj), int)
 
     def test_index_protocol(self):
         # __index__ enables hex(), bin(), oct() and use as a sequence index
-        obj = self._decode('U16', '0x0a00')  # 10
-        self.assertEqual(hex(obj), '0xa')
-        self.assertEqual(bin(obj), '0b1010')
-        self.assertEqual(oct(obj), '0o12')
+        obj = self._decode("U16", "0x0a00")  # 10
+        self.assertEqual(hex(obj), "0xa")
+        self.assertEqual(bin(obj), "0b1010")
+        self.assertEqual(oct(obj), "0o12")
         lst = list(range(20))
         self.assertEqual(lst[obj], 10)
 
     def test_arithmetic_with_int(self):
-        obj = self._decode('U64', '0x0300000000000000')  # 3
+        obj = self._decode("U64", "0x0300000000000000")  # 3
         self.assertEqual(int(obj) + 7, 10)
         self.assertEqual(int(obj) * 4, 12)
 
     def test_signed_int_conversion(self):
-        obj = self._decode('I32', '0xfeffffff')  # -2
+        obj = self._decode("I32", "0xfeffffff")  # -2
         self.assertEqual(int(obj), -2)
 
     def test_encode_accepts_decoded_object(self):
         # A decoded ScaleIntPrimitive can be passed directly into process_encode
         # without calling .value, because process_encode calls int() on its input.
-        decoded = self._decode('U32', '0x05000000')
-        encoder = RuntimeConfiguration().create_scale_object('U32')
+        decoded = self._decode("U32", "0x05000000")
+        encoder = RuntimeConfiguration().create_scale_object("U32")
         result = encoder.encode(decoded)
-        self.assertEqual(str(result), '0x05000000')
+        self.assertEqual(str(result), "0x05000000")
 
     def test_large_int_u128(self):
         value = 2**64 + 1
-        encoded = RuntimeConfiguration().create_scale_object('U128')
+        encoded = RuntimeConfiguration().create_scale_object("U128")
         encoded.encode(value)
-        decoded = RuntimeConfiguration().create_scale_object('U128', data=encoded.data)
+        decoded = RuntimeConfiguration().create_scale_object("U128", data=encoded.data)
         decoded.decode()
         self.assertEqual(int(decoded), value)
 
     def test_large_int_i128_negative(self):
         value = -(2**64)
-        encoded = RuntimeConfiguration().create_scale_object('I128')
+        encoded = RuntimeConfiguration().create_scale_object("I128")
         encoded.encode(value)
-        decoded = RuntimeConfiguration().create_scale_object('I128', data=encoded.data)
+        decoded = RuntimeConfiguration().create_scale_object("I128", data=encoded.data)
         decoded.decode()
         self.assertEqual(int(decoded), value)
