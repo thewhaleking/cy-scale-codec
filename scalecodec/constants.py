@@ -10,4 +10,5 @@ TYPE_DECOMP_MAX_RECURSIVE = 9
 #   list  — Vec, Set
 #   tuple — Tuple (multi-element), Era (mortal: (period, phase))
 from typing import Union
+
 ScaleValue = Union[int, float, bool, str, None, dict, list, tuple]

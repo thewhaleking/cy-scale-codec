@@ -1,4 +1,5 @@
 import re
+import sys
 import warnings
 from abc import ABC, abstractmethod
 from functools import lru_cache
@@ -7,6 +8,75 @@ from typing import Any, Optional, TYPE_CHECKING, Union
 from scalecodec.constants import TYPE_DECOMP_MAX_RECURSIVE
 from scalecodec.exceptions import RemainingScaleBytesNotEmptyException, InvalidScaleTypeValueException
 from scalecodec._scale_bytes import ScaleBytes
+
+
+class _ScaleInfoTypeRef:
+    """Lightweight picklable substitute for a GenericRegistryType ScaleDecoder.
+
+    Provides the .value dict interface needed by RuntimeConfigurationObject
+    without the overhead of a full ScaleDecoder instance.
+    """
+    __slots__ = ('value',)
+
+    def __init__(self, value_dict):
+        self.value = value_dict
+
+    def __getitem__(self, key):
+        return self.value[key]
+
+
+def _find_importable_base(cls):
+    """Return the first class in cls.__mro__ that is findable by module + qualname."""
+    for base in cls.__mro__:
+        if base is object:
+            continue
+        module_name = getattr(base, '__module__', None)
+        if not module_name:
+            continue
+        module = sys.modules.get(module_name)
+        if module is None:
+            continue
+        try:
+            obj = module
+            for part in base.__qualname__.split('.'):
+                obj = getattr(obj, part)
+            if obj is base:
+                return base
+        except AttributeError:
+            continue
+    return None
+
+
+# Cache of reconstructed dynamic classes keyed by (base_module, base_qualname, cls_name).
+# Eliminates redundant type() + ABCMeta calls when many instances of the same class are
+# unpickled. Assumes the type definition for a given class name is stable across runtimes
+# loaded in the same process (true for scale_info:: types in practice).
+_rebuilt_class_cache: dict = {}
+
+
+def _rebuild_scale_decoder(base_module, base_qualname, cls_name, cls_attrs, state):
+    """Reconstruct a ScaleDecoder instance from pickle without calling __init__ or decode()."""
+    import importlib
+    mod = importlib.import_module(base_module)
+    base_cls = mod
+    for part in base_qualname.split('.'):
+        base_cls = getattr(base_cls, part)
+    # Use the importable class directly when it IS the original class
+    if base_cls.__qualname__ == cls_name and not cls_attrs:
+        cls = base_cls
+    else:
+        cache_key = (base_module, base_qualname, cls_name)
+        cls = _rebuilt_class_cache.get(cache_key)
+        if cls is None:
+            cls = type(cls_name, (base_cls,), cls_attrs)
+            _rebuilt_class_cache[cache_key] = cls
+    obj = object.__new__(cls)
+    obj.__dict__.update(state)
+    if 'runtime_config' not in obj.__dict__:
+        obj.runtime_config = None
+    if 'data' not in obj.__dict__:
+        obj.data = None
+    return obj
 
 
 def _try_make_tuple_batch_decode(type_mapping, rc):
@@ -783,6 +853,48 @@ class ScaleDecoder(ABC):
 
         self.data_start_offset = None
         self.data_end_offset = None
+
+    def __reduce__(self):
+        cls = type(self)
+        importable_base = _find_importable_base(cls)
+        if importable_base is None:
+            raise TypeError(f"Cannot pickle {cls!r}: no importable base class found")
+
+        # Collect class-level type definition attributes that differ from the base
+        cls_attrs = {}
+        for attr in ('type_mapping', 'sub_type', 'element_count', 'value_list', 'value_type'):
+            val = getattr(cls, attr, None)
+            base_val = getattr(importable_base, attr, None)
+            if val is not None and val != base_val:
+                cls_attrs[attr] = val
+
+        scale_info_type = getattr(cls, 'scale_info_type', None)
+        if scale_info_type is not None:
+            try:
+                cls_attrs['scale_info_type'] = _ScaleInfoTypeRef(scale_info_type.value_serialized)
+            except AttributeError:
+                pass
+
+        # Instance state: exclude transient/unpicklable fields.
+        # _struct_field_cache / _struct_field_cache_no_meta hold dynamic class references
+        # (keyed by class object) that are rebuilt on next use; they cannot be pickled.
+        _EXCLUDE = frozenset((
+            'runtime_config', 'data', 'data_start_offset', 'data_end_offset',
+            '_struct_field_cache', '_struct_field_cache_no_meta',
+        ))
+        state = {k: v for k, v in self.__dict__.items() if k not in _EXCLUDE}
+        state['runtime_config'] = None
+        state['data'] = None
+        state['data_start_offset'] = None
+        state['data_end_offset'] = None
+
+        return (_rebuild_scale_decoder, (
+            importable_base.__module__,
+            importable_base.__qualname__,
+            cls.__name__,
+            cls_attrs,
+            state,
+        ))
 
     @property
     def value(self):

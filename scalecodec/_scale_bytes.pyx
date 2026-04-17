@@ -103,6 +103,9 @@ cdef class ScaleBytes:
         if type(data) == bytearray:
             return ScaleBytes(self.data + data)
 
+    def __reduce__(self):
+        return (self.__class__, (bytes(self.data),))
+
     def to_hex(self):
         """
         Return a hex-string (e.g. "0x00") representation of the byte-stream
