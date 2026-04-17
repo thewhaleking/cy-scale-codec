@@ -33,6 +33,9 @@ dependencies = [
 [project.optional-dependencies]
 test = ["coverage", "pytest"]
 cython = ["Cython>=3.0"]
+requests = [
+    "requests>=2.24.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/thewhaleking/cy-scale-codec"
@@ -50,8 +53,4 @@ exclude = ["contrib", "docs", "tests", "test"]
 dev = [
     "pytest>=9.0.2",
     "setuptools>=82.0.1",
-]
-
-requests = [
-    "requests>=2.24.0",
 ]
