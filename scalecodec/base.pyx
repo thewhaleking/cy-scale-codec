@@ -876,17 +876,19 @@ class ScaleDecoder(ABC):
                 pass
 
         # Instance state: exclude transient/unpicklable fields.
-        # _struct_field_cache / _struct_field_cache_no_meta hold dynamic class references
-        # (keyed by class object) that are rebuilt on next use; they cannot be pickled.
+        # runtime_config carries large type registries and is rebuilt by the caller
+        # after unpickling. The four cache dicts hold dynamic class references
+        # (keyed by class object) that are rebuilt on next use; they cannot be
+        # pickled. `data`, `data_start_offset`, `data_end_offset` ARE preserved:
+        # sub-objects (e.g. metadata pallets) need them for get_used_bytes() calls
+        # during later encoding paths like GenericCall.process_encode.
         _EXCLUDE = frozenset((
-            'runtime_config', 'data', 'data_start_offset', 'data_end_offset',
+            'runtime_config',
             '_struct_field_cache', '_struct_field_cache_no_meta',
+            '_enum_variant_cache', '_enum_variant_cache_no_meta',
         ))
         state = {k: v for k, v in self.__dict__.items() if k not in _EXCLUDE}
         state['runtime_config'] = None
-        state['data'] = None
-        state['data_start_offset'] = None
-        state['data_end_offset'] = None
 
         return (_rebuild_scale_decoder, (
             importable_base.__module__,
