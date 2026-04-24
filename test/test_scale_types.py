@@ -1138,3 +1138,51 @@ class TestFixedPoint(unittest.TestCase):
         f = fixed_to_float(bits)
         d = fixed_to_decimal(bits)
         self.assertNotEqual(d, Decimal(str(f)))
+
+    # --- V2 (mantissa/exponent) ---
+
+    V2_SAMPLE = {"mantissa": 172540239623960056912, "exponent": -7}
+    V2_EXPECTED_DECIMAL = Decimal("17254023962396.0056912")
+
+    def test_v2_float(self):
+        result = fixed_to_float(self.V2_SAMPLE)
+        self.assertAlmostEqual(result, float(self.V2_EXPECTED_DECIMAL), places=3)
+
+    def test_v2_decimal_exact(self):
+        result = fixed_to_decimal(self.V2_SAMPLE)
+        self.assertIsInstance(result, Decimal)
+        self.assertEqual(result, self.V2_EXPECTED_DECIMAL)
+
+    def test_v2_positive_exponent(self):
+        v = {"mantissa": 42, "exponent": 3}
+        self.assertEqual(fixed_to_decimal(v), Decimal("42000"))
+        self.assertEqual(fixed_to_float(v), 42000.0)
+
+    def test_v2_zero_exponent(self):
+        v = {"mantissa": 99, "exponent": 0}
+        self.assertEqual(fixed_to_decimal(v), Decimal(99))
+        self.assertEqual(fixed_to_float(v), 99.0)
+
+    def test_v2_zero_mantissa(self):
+        v = {"mantissa": 0, "exponent": -7}
+        self.assertEqual(fixed_to_decimal(v), Decimal(0))
+        self.assertEqual(fixed_to_float(v), 0.0)
+
+    def test_v2_negative_mantissa(self):
+        v = {"mantissa": -12345, "exponent": -2}
+        self.assertEqual(fixed_to_decimal(v), Decimal("-123.45"))
+        self.assertAlmostEqual(fixed_to_float(v), -123.45, places=10)
+
+    def test_v2_frac_bits_ignored(self):
+        # frac_bits is a V1 Q-format parameter; V2 must ignore it.
+        self.assertEqual(
+            fixed_to_decimal(self.V2_SAMPLE, frac_bits=32),
+            fixed_to_decimal(self.V2_SAMPLE),
+        )
+
+    def test_v2_decimal_more_precise_than_float(self):
+        # mantissa has more significant digits than float can hold, so the
+        # Decimal path must preserve precision the float path loses.
+        f = fixed_to_float(self.V2_SAMPLE)
+        d = fixed_to_decimal(self.V2_SAMPLE)
+        self.assertNotEqual(d, Decimal(str(f)))
