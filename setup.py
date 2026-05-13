@@ -14,6 +14,7 @@ _extensions = [
     Extension("scalecodec._primitives", ["scalecodec/_primitives.pyx"]),
     Extension("scalecodec._compact", ["scalecodec/_compact.pyx"]),
     Extension("scalecodec.utils._math", ["scalecodec/utils/_math.pyx"]),
+    Extension("scalecodec.utils._ss58", ["scalecodec/utils/_ss58.pyx"]),
     Extension("scalecodec.base", ["scalecodec/base.pyx"]),
     Extension("scalecodec.types", ["scalecodec/types.pyx"]),
 ]
@@ -31,6 +32,7 @@ except ImportError:
         Extension("scalecodec._primitives", ["scalecodec/_primitives.c"]),
         Extension("scalecodec._compact", ["scalecodec/_compact.c"]),
         Extension("scalecodec.utils._math", ["scalecodec/utils/_math.c"]),
+        Extension("scalecodec.utils._ss58", ["scalecodec/utils/_ss58.c"]),
         Extension("scalecodec.base", ["scalecodec/base.c"]),
         Extension("scalecodec.types", ["scalecodec/types.c"]),
     ]
