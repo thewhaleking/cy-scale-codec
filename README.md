@@ -90,16 +90,16 @@ PYTHONPATH=. python benchmarks/bench.py --compare benchmarks/baseline_py.json
 
 ## Examples of different types
 
-| Type | Description | Example SCALE decoding value | SCALE encoded value |
-|------|-------------|------------------------------|---------------------|
-| `bool` | Boolean values are encoded using the least significant bit of a single byte. | `True` | `0x01` |
-| `u16` | Basic integers are encoded using a fixed-width little-endian (LE) format. | `42` | `0x2a00` |
-| `Compact` | A "compact" or general integer encoding is sufficient for encoding large integers (up to 2\*\*536) and is more efficient at encoding most values than the fixed-width version. | `1` | `0x04` |
-| `Vec` | A collection of same-typed values is encoded, prefixed with a compact encoding of the number of items, followed by each item's encoding concatenated in turn. | `[4, 8, 15, 16, 23, 42]` | `0x18040008000f00100017002a00` |
-| `str`, `Bytes` | Strings are Vectors of bytes (`Vec<u8>`) containing a valid UTF8 sequence. | `"Test"` | `0x1054657374` |
-| `AccountId` | An [SS58 formatted](https://docs.substrate.io/reference/address-formats/) representation of an account. | `"5GDyPHLVHcQYPTWfygtPYeogQjyZy7J9fsi4brPhgEFq4pcv"` | `0xb80269ec...` |
-| `Enum` | A fixed number of variants, each mutually exclusive. Encoded as the first byte identifying the index of the variant. | `{'Int': 8}` | `0x002a` |
-| `Struct` | For structures, values are named but that is irrelevant for the encoding (only order matters). | `{"votes": [...], "id": 4}` | `0x04b80269...` |
+| Type           | Description                                                                                                                                                                    | Example SCALE decoding value                         | SCALE encoded value            |
+|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------|--------------------------------|
+| `bool`         | Boolean values are encoded using the least significant bit of a single byte.                                                                                                   | `True`                                               | `0x01`                         |
+| `u16`          | Basic integers are encoded using a fixed-width little-endian (LE) format.                                                                                                      | `42`                                                 | `0x2a00`                       |
+| `Compact`      | A "compact" or general integer encoding is sufficient for encoding large integers (up to 2\*\*536) and is more efficient at encoding most values than the fixed-width version. | `1`                                                  | `0x04`                         |
+| `Vec`          | A collection of same-typed values is encoded, prefixed with a compact encoding of the number of items, followed by each item's encoding concatenated in turn.                  | `[4, 8, 15, 16, 23, 42]`                             | `0x18040008000f00100017002a00` |
+| `str`, `Bytes` | Strings are Vectors of bytes (`Vec<u8>`) containing a valid UTF8 sequence.                                                                                                     | `"Test"`                                             | `0x1054657374`                 |
+| `AccountId`    | An [SS58 formatted](https://docs.substrate.io/reference/address-formats/) representation of an account.                                                                        | `"5GDyPHLVHcQYPTWfygtPYeogQjyZy7J9fsi4brPhgEFq4pcv"` | `0xb80269ec...`                |
+| `Enum`         | A fixed number of variants, each mutually exclusive. Encoded as the first byte identifying the index of the variant.                                                           | `{'Int': 8}`                                         | `0x002a`                       |
+| `Struct`       | For structures, values are named but that is irrelevant for the encoding (only order matters).                                                                                 | `{"votes": [...], "id": 4}`                          | `0x04b80269...`                |
 
 ## License
 
