@@ -57,33 +57,33 @@ Python 3.13.6
 
 | Benchmark                                    |  baseline |   current |  speedup |
 |----------------------------------------------|-----------:|-----------:|----------:|
-| u8 decode                                    |      3.01 |      1.16 |    2.60×   |
-| u16 decode                                   |      2.99 |      1.25 |    2.40×   |
-| u32 decode                                   |      3.11 |      1.26 |    2.47×   |
-| u64 decode                                   |      3.09 |      1.22 |    2.53×   |
-| u128 decode                                  |      2.91 |      1.22 |    2.39×   |
-| Compact<u32> decode                          |      9.59 |      4.38 |    2.19×   |
-| bool decode                                  |      2.93 |      1.18 |    2.48×   |
-| H256 decode                                  |      2.93 |      1.21 |    2.41×   |
-| AccountId decode (SS58 format 42)            |     11.45 |      6.11 |    1.87×   |
-| Str decode                                   |     12.89 |      5.82 |    2.22×   |
-| (u32, u64, bool) decode                      |     21.96 |      5.59 |    3.93×   |
-| u32 encode                                   |      2.34 |      1.10 |    2.13×   |
-| u64 encode                                   |      2.33 |      1.20 |    1.93×   |
-| Compact<u32> encode                          |      8.85 |      4.42 |    2.00×   |
-| H256 encode                                  |      2.47 |      1.01 |    2.44×   |
-| Vec<u32> decode (64 elements)                |    224.20 |     98.13 |    2.28×   |
-| Vec<u32> decode (1,024 elements)             |   3217.32 |   1423.46 |    2.26×   |
-| Vec<u32> decode (16,384 elements)            |  50396.95 |  22435.45 |    2.25×   |
-| Bytes decode (1 KB)                          |     14.67 |      6.87 |    2.14×   |
-| Bytes decode (64 KB)                         |     64.15 |     45.05 |    1.42×   |
-| Bytes decode (512 KB)                        |    379.99 |    300.14 |    1.27×   |
-| Vec<EventRecord> decode (5 events, V10)      |    301.10 |    135.32 |    2.23×   |
-| MetadataVersioned decode (V10, 85 KB)        |  64958.83 |  29839.68 |    2.18×   |
-| MetadataVersioned decode (V13, 219 KB)       | 143029.99 |  65651.69 |    2.18×   |
-| MetadataVersioned decode (V14, 300 KB)       | 390902.34 | 183644.98 |    2.13×   |
-| Bittensor metadata + portable registry (254 KB) | 443089.47 | 212345.78 |    2.09×   |
-| batch_decode AccountId ×10                   |    116.66 |     42.07 |    2.77×   |
-| batch_decode AccountId ×100                  |   1159.47 |    415.44 |    2.79×   |
-| batch_decode AccountId ×1,000                |  11530.59 |   4112.27 |    2.80×   |
-| batch_decode mixed (AccountId/u32/u128) ×100 |    599.73 |    147.75 |    4.06×   |
+| u8 decode                                    |      3.01 |      1.69 |    1.78×   |
+| u16 decode                                   |      2.99 |      1.80 |    1.66×   |
+| u32 decode                                   |      3.11 |      1.83 |    1.70×   |
+| u64 decode                                   |      3.09 |      1.79 |    1.73×   |
+| u128 decode                                  |      2.91 |      1.84 |    1.58×   |
+| Compact<u32> decode                          |      9.59 |      6.90 |    1.39×   |
+| bool decode                                  |      2.93 |      1.61 |    1.82×   |
+| H256 decode                                  |      2.93 |      1.66 |    1.76×   |
+| AccountId decode (SS58 format 42)            |     11.45 |      4.31 |    2.66×   |
+| Str decode                                   |     12.89 |      8.58 |    1.50×   |
+| (u32, u64, bool) decode                      |     21.96 |      8.36 |    2.63×   |
+| u32 encode                                   |      2.34 |      1.50 |    1.57×   |
+| u64 encode                                   |      2.33 |      1.55 |    1.50×   |
+| Compact<u32> encode                          |      8.85 |      6.36 |    1.39×   |
+| H256 encode                                  |      2.47 |      1.42 |    1.74×   |
+| Vec<u32> decode (64 elements)                |    224.20 |     20.88 |   10.74×   |
+| Vec<u32> decode (1,024 elements)             |   3217.32 |    147.21 |   21.85×   |
+| Vec<u32> decode (16,384 elements)            |  50396.95 |   2150.86 |   23.43×   |
+| Bytes decode (1 KB)                          |     14.67 |      9.99 |    1.47×   |
+| Bytes decode (64 KB)                         |     64.15 |     63.30 |    1.01×   |
+| Bytes decode (512 KB)                        |    379.99 |    429.74 |    0.88× ◀ |
+| Vec<EventRecord> decode (5 events, V10)      |    301.10 |    131.81 |    2.28×   |
+| MetadataVersioned decode (V10, 85 KB)        |  64958.83 |  35936.30 |    1.81×   |
+| MetadataVersioned decode (V13, 219 KB)       | 143029.99 |  81044.60 |    1.76×   |
+| MetadataVersioned decode (V14, 300 KB)       | 390902.34 | 185823.12 |    2.10×   |
+| Bittensor metadata + portable registry (254 KB) | 443089.47 | 211343.83 |    2.10×   |
+| batch_decode AccountId ×10                   |    116.66 |     19.36 |    6.03×   |
+| batch_decode AccountId ×100                  |   1159.47 |    190.19 |    6.10×   |
+| batch_decode AccountId ×1,000                |  11530.59 |   1888.99 |    6.10×   |
+| batch_decode mixed (AccountId/u32/u128) ×100 |    599.73 |     71.42 |    8.40×   |
