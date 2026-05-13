@@ -25,6 +25,18 @@ from hashlib import blake2b
 cdef bytes _ALPHABET_BYTES = b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 cdef unsigned char* _ALPHA = <unsigned char*>PyBytes_AsString(_ALPHABET_BYTES)
 
+# Inverse table: ASCII byte → base-58 digit (0..57), 0xFF for invalid chars.
+cdef unsigned char _ALPHA_INV[256]
+
+cdef _init_inverse_alphabet():
+    cdef int i
+    for i in range(256):
+        _ALPHA_INV[i] = 0xFF
+    for i in range(58):
+        _ALPHA_INV[_ALPHA[i]] = <unsigned char>i
+
+_init_inverse_alphabet()
+
 cdef bytes _SS58PRE = b"SS58PRE"
 
 
@@ -72,6 +84,67 @@ cpdef bytes b58encode_bytes(const unsigned char[:] data):
         out_buf[i] = _ALPHA[0]
     for i in range(digit_count):
         out_buf[leading_zeros + i] = _ALPHA[digits[digit_count - 1 - i]]
+
+    return out
+
+
+cpdef bytes b58decode_bytes(object data):
+    """Base58-decode an ASCII input (str or bytes-like) to raw bytes.
+
+    Equivalent to ``base58.b58decode(data)`` for the Bitcoin alphabet. Raises
+    ``ValueError`` on characters outside the alphabet.
+    """
+    cdef bytes ascii_bytes
+    if isinstance(data, str):
+        ascii_bytes = data.rstrip().encode("ascii")
+    elif isinstance(data, (bytes, bytearray, memoryview)):
+        ascii_bytes = bytes(data).rstrip()
+    else:
+        raise TypeError("b58decode_bytes: expected str or bytes-like")
+
+    cdef Py_ssize_t n = len(ascii_bytes)
+    if n == 0:
+        return b""
+
+    cdef const unsigned char* in_buf = <const unsigned char*>PyBytes_AsString(ascii_bytes)
+
+    # Leading '1' chars map to leading zero bytes in the output.
+    cdef Py_ssize_t leading_ones = 0
+    while leading_ones < n and in_buf[leading_ones] == _ALPHA[0]:
+        leading_ones += 1
+
+    # log2(58) / log2(256) ≈ 0.7322; 733/1000 is the standard safe bound.
+    cdef Py_ssize_t cap = (n - leading_ones) * 733 // 1000 + 1
+    cdef bytearray buf_ba = bytearray(cap)
+    cdef unsigned char[:] buf = buf_ba
+    cdef Py_ssize_t length = 0
+
+    cdef Py_ssize_t i, j
+    cdef uint32_t carry
+    cdef unsigned char digit
+
+    for i in range(leading_ones, n):
+        digit = _ALPHA_INV[in_buf[i]]
+        if digit == 0xFF:
+            raise ValueError(f"Invalid character {chr(in_buf[i])!r}")
+        carry = digit
+        j = 0
+        while j < length or carry > 0:
+            if j < length:
+                carry += <uint32_t>buf[j] * <uint32_t>58
+            buf[j] = <unsigned char>(carry & 0xFF)
+            carry >>= 8
+            j += 1
+        length = j
+
+    cdef Py_ssize_t out_len = leading_ones + length
+    cdef bytes out = PyBytes_FromStringAndSize(NULL, out_len)
+    cdef unsigned char* out_buf = <unsigned char*>PyBytes_AsString(out)
+
+    for i in range(leading_ones):
+        out_buf[i] = 0
+    for i in range(length):
+        out_buf[leading_ones + i] = buf[length - 1 - i]
 
     return out
 

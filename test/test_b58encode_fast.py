@@ -10,7 +10,11 @@ from hashlib import blake2b
 
 import base58
 
-from scalecodec.utils._ss58 import b58encode_bytes, ss58_encode_fast
+from scalecodec.utils._ss58 import (
+    b58decode_bytes,
+    b58encode_bytes,
+    ss58_encode_fast,
+)
 
 
 def _ss58_encode_reference(address, ss58_format=42):
@@ -94,6 +98,52 @@ class B58EncodeBytesTestCase(unittest.TestCase):
             b58encode_bytes(bytearray(b"\x01\x02\x03")),
             base58.b58encode(b"\x01\x02\x03"),
         )
+
+
+class B58DecodeBytesTestCase(unittest.TestCase):
+    def assert_matches_base58(self, encoded: bytes) -> None:
+        self.assertEqual(b58decode_bytes(encoded), base58.b58decode(encoded))
+
+    def test_empty(self):
+        self.assertEqual(b58decode_bytes(b""), b"")
+        self.assertEqual(b58decode_bytes(""), b"")
+
+    def test_single_one_char(self):
+        # "1" decodes to a single zero byte.
+        self.assert_matches_base58(b"1")
+
+    def test_all_ones(self):
+        self.assert_matches_base58(b"11111")
+
+    def test_roundtrip_with_b58encode_bytes(self):
+        rng = random.Random(0x12345678)
+        for length in (0, 1, 7, 16, 32, 33, 35, 64):
+            data = bytes(rng.randint(0, 255) for _ in range(length))
+            encoded = b58encode_bytes(data)
+            self.assertEqual(b58decode_bytes(encoded), data)
+
+    def test_accepts_str_and_bytes(self):
+        encoded = base58.b58encode(b"\x01\x02\x03")
+        self.assertEqual(b58decode_bytes(encoded), b"\x01\x02\x03")
+        self.assertEqual(b58decode_bytes(encoded.decode("ascii")), b"\x01\x02\x03")
+        self.assertEqual(b58decode_bytes(bytearray(encoded)), b"\x01\x02\x03")
+
+    def test_strips_trailing_whitespace(self):
+        encoded = base58.b58encode(b"\xde\xad\xbe\xef")
+        self.assertEqual(b58decode_bytes(encoded + b"  \n"), b"\xde\xad\xbe\xef")
+        self.assertEqual(b58decode_bytes(encoded.decode() + "  \n"), b"\xde\xad\xbe\xef")
+
+    def test_invalid_character_raises(self):
+        with self.assertRaises(ValueError):
+            b58decode_bytes("0OIl")  # all four are excluded from the alphabet
+
+    def test_fuzz_matches_upstream(self):
+        rng = random.Random(0x99999999)
+        for _ in range(200):
+            length = rng.randint(0, 80)
+            data = bytes(rng.randint(0, 255) for _ in range(length))
+            encoded = base58.b58encode(data)
+            self.assert_matches_base58(encoded)
 
 
 class SS58EncodeFastTestCase(unittest.TestCase):

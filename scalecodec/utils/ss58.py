@@ -6,11 +6,13 @@ https://github.com/paritytech/substrate/wiki/External-Address-Format-(SS58)
 
 from typing import Optional, Union
 
-import base58
 from hashlib import blake2b
 
 from scalecodec.base import ScaleBytes, RuntimeConfiguration
-from scalecodec.utils._ss58 import ss58_encode_fast as ss58_encode  # noqa: F401
+from scalecodec.utils._ss58 import (  # noqa: F401
+    b58decode_bytes,
+    ss58_encode_fast as ss58_encode,
+)
 
 
 def ss58_decode(address: str, valid_ss58_format: Optional[int] = None) -> str:
@@ -35,7 +37,7 @@ def ss58_decode(address: str, valid_ss58_format: Optional[int] = None) -> str:
 
     checksum_prefix = b"SS58PRE"
 
-    address_decoded = base58.b58decode(address)
+    address_decoded = b58decode_bytes(address)
 
     if address_decoded[0] & 0b0100_0000:
         ss58_format_length = 2
@@ -211,7 +213,7 @@ def get_ss58_format(ss58_address: str) -> int:
     -------
     int
     """
-    address_decoded = base58.b58decode(ss58_address)
+    address_decoded = b58decode_bytes(ss58_address)
 
     if address_decoded[0] & 0b0100_0000:
         ss58_format = (

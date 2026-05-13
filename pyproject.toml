@@ -25,13 +25,10 @@ classifiers = [
     "Programming Language :: Cython",
 ]
 requires-python = ">=3.10"
-dependencies = [
-    "more-itertools",
-    "base58>=2.0.1",
-]
+dependencies = []
 
 [project.optional-dependencies]
-test = ["coverage", "pytest"]
+test = ["coverage", "pytest", "base58>=2.0.1"]
 cython = ["Cython>=3.0"]
 requests = [
     "requests>=2.24.0",
